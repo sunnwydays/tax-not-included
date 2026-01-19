@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="/scripts/tailwind.js"></script>
+    <!-- utils must appear before popup -->
+    <script src="/scripts/utils.js"></script>
+    <script src="popup.js"></script>
+  </head>
+  <body class="my-4 mx-4 text-center">
+    <template id="rate_input_template">
+      <li class="flex gap-2">
+        <label for=""></label>
+        <input 
+          type="number" step="0.001" min="0" name="" id="" 
+          class="invalid:border-pink-500 invalid:text-pink-600"
+        />
+      </li>
+    </template>
+
+    <h1 class="text-xl pb-2">Tax Not Included</h1>
+    <form id="rate-form">
+        <ul class="space-y-2">
+        <!-- input boxes go here -->
+      </ul>
+      <div class="flex items-center justify-center gap-2 mt-4">
+        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">
+          Save Rates
+        </button>
+        <span id="save-status" class="text-green-600 font-medium opacity-0 transition-opacity duration-300">
+          Saved!
+        </span>
+      </div>
+    </form>
+    <form id="new-rate-form">
+        <label for="new-rate-name"></label>
+        <input 
+          type="text" id="new-rate-name"
+        />
+        <label for="new-rate"></label>
+        <input 
+          type="number" step="0.001" min="0" name="" id="new-rate" 
+          class="invalid:border-pink-500 invalid:text-pink-600"
+        />
+      <button type="submit">+ Add multiplier</button>
+    </form>
+    <p id="total-rate" class="font-bold"></p>
+  </body>
+</html>
