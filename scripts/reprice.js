@@ -1,11 +1,14 @@
 let timeout = null;
-const minRefreshInterval = 500; // ms
+const MIN_REFRESH_INTERVAL = 500; // ms
 const nodesToProcess = new Set();
 const tagsWithPrices = 'span'; // for now looks like all prices are in spans
 // 'p, span, div, li, article, section, h1, h2, h3, b, i, strong'
 
+let currentRate = 1;
+
 function calculatePrice(element, rate) {
-  if (!rate) return;
+  const activeRate = rate || currentRate; 
+  if (!activeRate || activeRate === 1) return;
   if (!element || element.dataset.priceProcessed || element.closest('[data-price-processed]')) {
     return;
   }
@@ -20,7 +23,7 @@ function calculatePrice(element, rate) {
     const originalText = textNode.nodeValue;
     const newText = originalText.replace(priceRegex, (match, currency, amount) => {
       hasMatches = true;
-      const updatedAmount = (parseFloat(amount.replace(/,/g, '')) * rate).toFixed(2);
+      const updatedAmount = (parseFloat(amount.replace(/,/g, '')) * activeRate).toFixed(2);
       return `${currency}${updatedAmount}`;
     });
 
@@ -31,14 +34,18 @@ function calculatePrice(element, rate) {
 }
 
 const processBatch = () => {
-  nodesToProcess.forEach(node => {
-    // Process the root node
-    calculatePrice(node);
-    // Process all relevant children
-    node.querySelectorAll(tagsWithPrices)
-        .forEach(calculatePrice);
+  chrome.storage.local.get(['taxOn'], (res) => {
+    if (res.taxOn === false) {
+      nodesToProcess.clear();
+      return;
+    }
+
+    nodesToProcess.forEach(node => {
+      calculatePrice(node);
+      node.querySelectorAll(tagsWithPrices).forEach(calculatePrice);
+    });
+    nodesToProcess.clear();
   });
-  nodesToProcess.clear();
 };
 
 // Detect (for SPAs) and batch price changes, min time between refreshes
@@ -52,7 +59,7 @@ const observer = new MutationObserver((mutations) => {
   }
 
   clearTimeout(timeout);
-  timeout = setTimeout(processBatch, minRefreshInterval);  
+  timeout = setTimeout(processBatch, MIN_REFRESH_INTERVAL);  
 });
 
 // Detect and apply user's rate changes
@@ -61,24 +68,33 @@ chrome.storage.onChanged.addListener((changes) => {
     window.location.reload(); // reload to reset and recalculate
     // ^see if this is annoying or not, could be changed
   }
+
+  if (changes.taxOn) {
+    window.location.reload(); // reload to reset and possibly recalculate
+  }
 });
 
 // =======================================
 // ===========   MAIN   ==================
 // =======================================
 
-// Get the rate before calculating
-chrome.storage.sync.get(['rates'], (result) => {
-  const currentRate = getCombinedRate(result.rates);
+chrome.storage.local.get(['taxOn'], localRes => {
+  chrome.storage.sync.get(['rates'], syncRes => {
+    const isEnabled = localRes.taxOn !== false; // Default to true if undefined
+    currentRate = getCombinedRate(syncRes.rates);
 
-  document.querySelectorAll(tagsWithPrices).forEach(el => {
-    calculatePrice(el, currentRate);
-  });
+    if (isEnabled) {
+      document.querySelectorAll(tagsWithPrices).forEach(el => {
+        calculatePrice(el);
+      });
+    }
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
   });
 });
+
 

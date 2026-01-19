@@ -21,5 +21,14 @@
   },
   "permissions": [
     "storage"
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-tax": {
+      "suggested_key": "Ctrl+Shift+F",
+      "description": "Toggle price calculations (hide/show original prices)"
+    }
+  }
 }
