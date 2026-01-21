@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,29 +8,29 @@
     <!-- utils must appear before popup -->
     <script src="/scripts/utils.js"></script>
     <script src="popup.js"></script>
-  </head>
-  <body class="my-4 mx-4 text-center">
+</head>
+<body class="my-4 mx-4 text-center">
     <template id="rate-template">
-      <li class="flex gap-2">
-        <span class="rate-name"></span>
-        <input class="hidden rate-name-input"></input>
-        <span class="rate"></span>
-        <input 
-          type="number" step="0.001" min="0"
-          class="hidden rate-input invalid:border-pink-500 invalid:text-pink-600"
-        ></input>
-        <button class="cursor-pointer remove-rate p-1 bg-red-500 hover:bg-red-400">🗑️</button>
-      </li>
+        <li class="flex gap-2">
+            <span class="rate-name"></span>
+            <input class="hidden rate-name-input"></input>
+            <span class="rate"></span>
+            <input 
+            type="number" step="0.001" min="0"
+            class="hidden rate-input invalid:border-pink-500 invalid:text-pink-600"
+            ></input>
+            <button class="cursor-pointer remove-rate p-1 bg-red-500 hover:bg-red-400">🗑️</button>
+        </li>
     </template>
-
+    
     <h1 class="text-xl pb-2">Tax Not Included</h1>
     <button id="toggle-tax" class="cursor-pointer"></button>
     <form id="rate-form">
-      <ul id="rate-list" class="space-y-2">
-        <!-- input boxes go here -->
-      </ul>
+        <ul id="rate-list" class="space-y-2">
+            <!-- input boxes go here -->
+        </ul>
     </form>
     <button id="new-rate" class="cursor-pointer">+ Add multiplier</button>
     <p id="total-rate" class="font-bold"></p>
-  </body>
+</body>
 </html>
