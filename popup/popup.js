@@ -1,12 +1,18 @@
-/**
- * @property {Object.<string, number>} rates - Dictionary of tax names and multipliers.
- * @property {boolean} taxOn - Global toggle state.
+/** * @type {Object.<string, number>} 
+ * @description Default tax rates used when rates is empty.
  */
-
 const defaultRates = { 'Tax': 1.13 };
 
+/** * @type {Object.<string, number>} 
+ * @description Live dictionary of tax names and their corresponding multipliers.
+ */
 let rates = {};
 
+/**
+ * Returns a unique rate name by appending numbers to the provided name
+ * @param {string} rateName Name of a rate
+ * @returns {string} String to be used as a key for rates object
+ */
 const getUnusedName = (rateName) => {
     let finalName = rateName.trim();
     
@@ -21,12 +27,20 @@ const getUnusedName = (rateName) => {
     return finalName;
 }
 
+/**
+ * Updates the toggle tax button with Hide or Show depending on inOn
+ * @param {boolean} isOn Is tax calculation enabled
+ * @returns {void}
+ */
 const updateToggleButtonText = (isOn) => {
     const toggleTaxBtn = document.querySelector('#toggle-tax');
     if (!toggleTaxBtn) return;
     toggleTaxBtn.textContent = (isOn ? 'Hide' : 'Show') + ' real prices';
 };
 
+/**
+ * Updates the Total Multiplier display
+ */
 const updateTotalDisplay = () => {
     const total = getCombinedRate(rates);
     const display = document.querySelector('#total-rate');
@@ -35,6 +49,11 @@ const updateTotalDisplay = () => {
     }
 };
 
+/**
+ * Creates an entry for a new rate with a unique name
+ * @param {string} rateName Name of rate
+ * @param {number} rate Rate
+ */
 const addNewRate = async (rateName, rate) => {
     const list = document.querySelector('#rate-list');
     const template = document.querySelector('#rate-template');
@@ -45,6 +64,15 @@ const addNewRate = async (rateName, rate) => {
     list.appendChild(initRateEntry(template, uniqueName, rate));
 }
 
+/**
+ * Adds event listeners to an element so it becomes an input box on click
+ * @param {HTMLElement} parent Clone of list item template with spans and hidden inputs
+ * @param {string} className 'rate' or 'rate-name'
+ * @param {string} rateName 
+ * @param {number} rate 
+ * @param {boolean} isName If this should process the rate name or the rate
+ * @returns 
+ */
 const initEditableElement = (parent, className, rateName, rate, isName) => {
     const elem = parent.querySelector('.' + className);
     const input = parent.querySelector('.' + className + '-input');
@@ -104,7 +132,13 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
     });
 }
 
-// Add listeners to a editable rate with name and delete button
+/**
+ * Returns DOM element with editable rate name and rate texts, and delete button
+ * @param {HTMLElement} template Rate template with spans and inputs for rate name and rate
+ * @param {string} rateName 
+ * @param {number} rate 
+ * @returns {HTMLElement} Visible DOM element to add to the list of rates
+ */
 const initRateEntry = (template, rateName, rate) => {
     const clone = template.content.firstElementChild.cloneNode(true);
     
@@ -124,6 +158,10 @@ const initRateEntry = (template, rateName, rate) => {
     return clone;
 }
 
+/**
+ * Displays the popup with the existing rates (or default rates), tax toggle,
+ * input elements, and total rate display.
+ */
 const initPopup = async () => {
     const { rates: syncedRates } = await chrome.storage.sync.get(['rates']);
     rates = (syncedRates && Object.keys(syncedRates).length > 0) 

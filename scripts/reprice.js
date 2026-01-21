@@ -8,6 +8,13 @@ p, li, article, section, h1, h2, h3, b, i, strong
 
 let currentRate = 1;
 
+/**
+ * Calculates and updates the price display on page for a DOM element and its
+ * children (only including children tagsWithPrices)
+ * @param {HTMLElement} element 
+ * @param {number} rate 
+ * @returns 
+ */
 function calculatePrice(element, rate) {
     const activeRate = rate || currentRate; 
     if (!activeRate || activeRate === 1) return;
@@ -35,6 +42,9 @@ function calculatePrice(element, rate) {
     if (hasMatches) element.dataset.priceProcessed = "true";
 }
 
+/**
+ * Calculates and updates prices for a set of elements (nodesToPrices) if taxOn
+ */
 const processBatch = () => {
     chrome.storage.local.get(['taxOn'], (res) => {
         if (res.taxOn === false) {
