@@ -10,42 +10,27 @@
     <script src="popup.js"></script>
   </head>
   <body class="my-4 mx-4 text-center">
-    <template id="rate_input_template">
+    <template id="rate-template">
       <li class="flex gap-2">
-        <label for=""></label>
+        <span class="rate-name"></span>
+        <input class="hidden rate-name-input"></input>
+        <span class="rate"></span>
         <input 
-          type="number" step="0.001" min="0" name="" id="" 
-          class="invalid:border-pink-500 invalid:text-pink-600"
-        />
+          type="number" step="0.001" min="0"
+          class="hidden rate-input invalid:border-pink-500 invalid:text-pink-600"
+        ></input>
+        <button class="cursor-pointer remove-rate p-1 bg-red-500 hover:bg-red-400">🗑️</button>
       </li>
     </template>
 
     <h1 class="text-xl pb-2">Tax Not Included</h1>
+    <button id="toggle-tax" class="cursor-pointer"></button>
     <form id="rate-form">
-        <ul class="space-y-2">
+      <ul id="rate-list" class="space-y-2">
         <!-- input boxes go here -->
       </ul>
-      <div class="flex items-center justify-center gap-2 mt-4">
-        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">
-          Save Rates
-        </button>
-        <span id="save-status" class="text-green-600 font-medium opacity-0 transition-opacity duration-300">
-          Saved!
-        </span>
-      </div>
     </form>
-    <form id="new-rate-form">
-        <label for="new-rate-name"></label>
-        <input 
-          type="text" id="new-rate-name"
-        />
-        <label for="new-rate"></label>
-        <input 
-          type="number" step="0.001" min="0" name="" id="new-rate" 
-          class="invalid:border-pink-500 invalid:text-pink-600"
-        />
-      <button type="submit">+ Add multiplier</button>
-    </form>
+    <button id="new-rate" class="cursor-pointer">+ Add multiplier</button>
     <p id="total-rate" class="font-bold"></p>
   </body>
 </html>
