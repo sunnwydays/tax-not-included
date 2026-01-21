@@ -3,7 +3,7 @@ const MIN_REFRESH_INTERVAL = 500; // ms
 const nodesToProcess = new Set();
 const tagsWithPrices = `
 span:not(script span, style span), div:not(nav div), 
-p, li, article, section, h1, h2, h3, b, i, strong
+p, li, article, section
 `;
 
 let currentRate = 1;
