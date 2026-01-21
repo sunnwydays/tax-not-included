@@ -15,30 +15,35 @@
 </head>
 <body class="m-0 text-center min-w-3xs">
     <template id="rate-template">
-        <li class="gap-2 mx-6 flex items-center justify-between">
-            <span class="rate-name"></span>
-            <input class="hidden rate-name-input max-w-24"></input>
-            <div class="space-x-4">
-                <span class="rate"></span>
+        <li class="gap-4 mx-8 flex items-center justify-between">
+            <span class="
+                rate-name cursor-pointer min-w-24 p-1 flex justify-start
+            "></span>
+            <input class="hidden rate-name-input max-w-24 p-1"></input>
+            <div class="space-x-2 flex">
+                <span class="
+                    rate cursor-pointer min-w-12 
+                    border border-gray-400 rounded-md p-1 flex justify-end
+                "></span>
                 <input 
                     type="number" step="0.001" min="0"
                     class="
                         hidden rate-input 
                         invalid:border-pink-500 invalid:text-pink-600
-                        max-w-14
+                        max-w-14 p-1
                     "
                 ></input>
                 <button class="
-                    cursor-pointer remove-rate p-1 items-center
-                    bg-[#b03030] hover:bg-[#4a0404] transition-all rounded-md"
-                >
-                    🗑️
-                </button>
+                    cursor-pointer text-xs remove-rate p-1 
+                    bg-[#b03030] hover:bg-[#4a0404] transition-all rounded-md
+                ">🗑️</button>
             </div>
         </li>
     </template>
     
-    <h1 class="text-xl m-0 p-4 bg-[#517a5e] text-white shadow-sm">Tax Not Included</h1>
+    <h1 class="text-xl m-0 p-4 bg-[#517a5e] text-white shadow-sm">
+        Tax Not Included
+    </h1>
     <button 
         id="toggle-tax" 
         class="
@@ -46,8 +51,7 @@
             border-[#81986e] border-solid border-3 rounded-md
             hover:bg-[#81986e] hover:text-white transition-all 
         "
-    >
-    </button>
+    ></button>
     <form id="rate-form">
         <ul id="rate-list" class="space-y-2">
             <!-- input boxes go here -->
@@ -56,12 +60,10 @@
     <button 
         id="new-rate" 
         class="
-            cursor-pointer p-2
+            cursor-pointer p-3
             hover:text-gray-500  transition-all
         "
-    >
-        + Add multiplier
-    </button>
+    >+ Add multiplier</button>
     <hr class="font-bold text-[#517a5e] w-52 mx-auto border-1 rounded-md">
     <p id="total-rate" class="font-bold m-3"></p>
 </body>
