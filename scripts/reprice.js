@@ -1,8 +1,10 @@
 let timeout = null;
 const MIN_REFRESH_INTERVAL = 500; // ms
 const nodesToProcess = new Set();
-const tagsWithPrices = 'span'; // for now looks like all prices are in spans
-// 'p, span, div, li, article, section, h1, h2, h3, b, i, strong'
+const tagsWithPrices = `
+  span:not(script span, style span), div:not(nav div), 
+  p, li, article, section, h1, h2, h3, b, i, strong
+`;
 
 let currentRate = 1;
 
