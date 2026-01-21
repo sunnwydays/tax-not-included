@@ -17,6 +17,7 @@
     }
   ],
   "action": {
+    "default_title": "Edit tax rates",
     "default_popup": "popup/popup.html"
   },
   "permissions": [
