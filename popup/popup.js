@@ -1,3 +1,8 @@
+/**
+ * @property {Object.<string, number>} rates - Dictionary of tax names and multipliers.
+ * @property {boolean} taxOn - Global toggle state.
+ */
+
 const defaultRates = { 'Tax': 1.13 };
 
 let rates = {};

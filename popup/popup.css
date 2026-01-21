@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* @theme {
+    --color-brand-dark-red: #4a0404;
+    --color-brand-red: #b03030;
+    --color-brand-cream: #ede1af;
+    --color-brand-sage: #81986e;
+    --color-brand-forest: #517a5e;
+} */
+
+body {
+  font-family: "Zalando Sans Expanded", sans-serif;
+  font-optical-sizing: auto;
+}
