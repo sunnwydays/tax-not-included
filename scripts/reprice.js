@@ -15,10 +15,10 @@ let currentRate = 1;
  * @param {number} rate 
  * @returns 
  */
-function calculatePrice(element, rate) {
+const calculatePrice = (element, rate) => {
     const activeRate = rate || currentRate; 
     if (!activeRate || activeRate === 1) return;
-    if (!element || element.dataset.priceProcessed || element.closest('[data-price-processed]')) {
+    if (!element || element.dataset.originalText || element.closest('[data-original-html]')) {
         return;
     }
     
@@ -26,20 +26,26 @@ function calculatePrice(element, rate) {
     
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
     let textNode;
-    let hasMatches = false;
+    let modified = false;
+    const elemInitialHtml = element.innerHTML;
     
     while (textNode = walker.nextNode()) {
+        let hasMatch = false;
         const originalText = textNode.nodeValue;
         const newText = originalText.replace(priceRegex, (match, currency, amount) => {
-            hasMatches = true;
+            modified = true;
+            hasMatch = true;
             const updatedAmount = (parseFloat(amount.replace(/,/g, '')) * activeRate).toFixed(2);
             return `${currency}${updatedAmount}`;
         });
         
-        if (hasMatches) textNode.nodeValue = newText;
+        if (hasMatch) textNode.nodeValue = newText;
     }
-    
-    if (hasMatches) element.dataset.priceProcessed = "true";
+
+    if (modified) {
+        // Save the original state of the node for reset
+        element.dataset.originalHtml = elemInitialHtml;
+    }
 }
 
 /**
@@ -60,53 +66,77 @@ const processBatch = () => {
     });
 };
 
-// Detect (for SPAs) and batch price changes, min time between refreshes
-const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-        mutation.addedNodes.forEach(node => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                nodesToProcess.add(node);
-            }
+/**
+ * Reset prices in the DOM to their original values
+ */
+const resetPrices = () => {
+    document.querySelectorAll('[data-original-html').forEach(el => {
+        el.innerHTML = el.dataset.originalHtml;
+        delete el.dataset.originalHtml;
+    });
+}
+
+/**
+ * Change prices on the page to reflect user's rates
+ */
+const applyRates = async () => {
+    const [local, sync] = await Promise.all([
+        chrome.storage.local.get(['taxOn']),
+        chrome.storage.sync.get(['rates'])
+    ]);
+
+    currentRate = getCombinedRate(sync.rates || {});
+
+    const isEnabled = local.taxOn !== false; // True if undefined
+    if (isEnabled) {
+        document.querySelectorAll(tagsWithPrices).forEach(el => {
+            calculatePrice(el);
         });
     }
-    
-    clearTimeout(timeout);
-    timeout = setTimeout(processBatch, MIN_REFRESH_INTERVAL);  
-});
+}
 
-// Detect and apply user's rate changes
-chrome.storage.onChanged.addListener((changes) => {
-    if (changes.rates) {
-        window.location.reload(); // reload to reset and recalculate
-        // ^see if this is annoying or not, could be changed
-    }
-    
-    if (changes.taxOn) {
-        window.location.reload(); // reload to reset and possibly recalculate
-    }
-});
-
-// =======================================
-// ===========   MAIN   ==================
-// =======================================
-
-chrome.storage.local.get(['taxOn'], localRes => {
-    chrome.storage.sync.get(['rates'], syncRes => {
-        const isEnabled = localRes.taxOn !== false; // True if undefined
-        currentRate = getCombinedRate(syncRes.rates);
-        
-        if (isEnabled) {
-            document.querySelectorAll(tagsWithPrices).forEach(el => {
-                calculatePrice(el);
+/**
+ * Create observer and listener for changes in DOM and rates
+ */
+const initializeObservers = () => {
+    // Detect (for SPAs) and batch price changes, min time between refreshes
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    nodesToProcess.add(node);
+                }
             });
         }
         
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
+        clearTimeout(timeout);
+        timeout = setTimeout(processBatch, MIN_REFRESH_INTERVAL);  
     });
-});
 
+    // Detect and apply user's rate changes
+    chrome.storage.onChanged.addListener(async (changes) => {
+        if (changes.taxOn) {
+            const isTaxOn = changes.taxOn.newValue;
+            if (isTaxOn) applyRates();
+            else resetPrices();
+        }
 
+        // Also handle rate changes if the tax is currently active
+        if (changes.rates) {
+            const { taxOn } = await chrome.storage.local.get(['taxOn']);
+            if (taxOn !== false) {
+                resetPrices();
+                applyRates();
+            }
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+}
+
+applyRates();
+initializeObservers();
