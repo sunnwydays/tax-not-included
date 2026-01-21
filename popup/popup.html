@@ -15,14 +15,16 @@
 </head>
 <body class="m-0 text-center min-w-3xs">
     <template id="rate-template">
-        <li class="gap-4 mx-8 flex items-center justify-between">
+        <li class="gap-4 mx-8 flex items-center justify-between min-h-7">
+
             <span class="
                 rate-name cursor-pointer min-w-24 p-1 flex justify-start
             "></span>
             <input class="hidden rate-name-input max-w-24 p-1"></input>
-            <div class="space-x-2 flex">
+
+            <div class="space-x-2 flex items-center">
                 <span class="
-                    rate cursor-pointer min-w-12 
+                    rate cursor-pointer min-w-14 
                     border border-gray-400 rounded-md p-1 flex justify-end
                 "></span>
                 <input 
@@ -33,11 +35,14 @@
                         max-w-14 p-1
                     "
                 ></input>
+
                 <button class="
-                    cursor-pointer text-xs remove-rate p-1 
+                    cursor-pointer text-xs remove-rate size-6 m-0
                     bg-[#b03030] hover:bg-[#4a0404] transition-all rounded-md
+                    flex justify-center items-center
                 ">🗑️</button>
             </div>
+
         </li>
     </template>
     
