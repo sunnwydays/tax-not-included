@@ -22,23 +22,65 @@ const calculatePrice = (element, rate) => {
         return;
     }
     
-    const priceRegex = /(\$|USD|CAD|€|£)\s?([0-9,]+(\.[0-9,]+)?)/g;
-    
+    // 1. Leading Symbol (Optional)
+    // 2. Number (Mandatory: >1 digits + optional thousands + optional 2-digit decimal)
+    // 3. Trailing Symbol (Optional)
+    const priceRegex = /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
+
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
     let textNode;
     let modified = false;
     const elemInitialHtml = element.innerHTML;
     
     while (textNode = walker.nextNode()) {
-        let hasMatch = false;
         const originalText = textNode.nodeValue;
-        const newText = originalText.replace(priceRegex, (match, currency, amount) => {
-            modified = true;
+
+        let hasMatch = false;
+
+        // parse currency, thousands separator, and decimal separator in various formats
+        const newText = originalText.replace(priceRegex, (match, leading, amountStr, trailing) => {
+            if (!leading && !trailing) return match;
+
+            const possibleDecimalSeps = ['.', ','];
+
+            let decimalSep = null;
+            const charAt_2 = amountStr.at(-2);
+            const charAt_3 = amountStr.at(-3);
+
+            if (possibleDecimalSeps.includes(charAt_2)) decimalSep = charAt_2;
+            else if (possibleDecimalSeps.includes(charAt_3)) decimalSep = charAt_3;
+
+            const allSeps = amountStr.match(/[.,'\s\u00A0]/g) || [];
+            const thousandSep = allSeps.find((s) => {
+                return s !== decimalSep;
+            }) || null;
+
+            let normalized = amountStr.replace(/[ '\u00A0]/g, '');
+            if (decimalSep === ',') {
+                normalized = normalized.replace(/\./g, '').replace(',', '.');
+            } else {
+                normalized = normalized.replace(/,/g, '');
+            }
+
+            const parsed = parseFloat(normalized);
+            if (isNaN(parsed)) return match;
+
+            const updatedValue = (parsed * activeRate).toFixed(2);
+            const [integers, decimals] = updatedValue.split('.');
+
+            // Add thousand separators back
+            const formattedIntegers = integers.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
+            
+            // Put it all together using the original decimal separator
+            const finalAmount = decimalSep 
+                ? `${formattedIntegers}${decimalSep}${decimals}` 
+                : formattedIntegers;
+
             hasMatch = true;
-            const updatedAmount = (parseFloat(amount.replace(/,/g, '')) * activeRate).toFixed(2);
-            return `${currency}${updatedAmount}`;
+            modified = true;
+            return (leading ?? '') + finalAmount + (trailing ?? '');
         });
-        
+
         if (hasMatch) textNode.nodeValue = newText;
     }
 
