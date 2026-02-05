@@ -72,9 +72,7 @@ const calculatePrice = (element, rate) => {
             const formattedIntegers = integers.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
             
             // Put it all together using the original decimal separator
-            const finalAmount = decimalSep 
-                ? `${formattedIntegers}${decimalSep}${decimals}` 
-                : formattedIntegers;
+            const finalAmount = `${formattedIntegers}${decimalSep ?? "."}${decimals}`;
 
             hasMatch = true;
             modified = true;
