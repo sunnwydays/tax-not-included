@@ -21,8 +21,9 @@ const calculatePrice = (element, rate) => {
     if (!activeRate || activeRate === 1 || !element) return;
     if (element.closest('[data-original-html]')) return;
 
-    // HTML changed, unmark to process again
-    if (element.dataset.originalHtml && !element.innerHTML.includes(element.dataset.originalHtml)) {
+    // If the site changed the HTML (e.g., color swap), we should strip our marker and re-process.
+    if (element.dataset.originalHtml) {
+        if (element.innerHTML.includes(element.dataset.originalHtml)) return;
         delete element.dataset.originalHtml;
     }
 
