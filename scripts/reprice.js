@@ -1,3 +1,28 @@
+/**
+ * @typedef {Object} PricePart
+ * @property {Node|null} node - The DOM text node containing this part.
+ * @property {number|null} value - The numeric value.
+ * @property {string} [thousandSep] - Thousands separator used (whole only).
+ */
+
+/**
+ * Enum for price detection state machine.
+ * @readonly
+ * @enum {number}
+ */
+const PriceStates = {
+    /** No price data detected yet */
+    EMPTY: 0,
+    /** Currency symbol or code detected (e.g., "$", "USD") */
+    CURRENCY: 1,
+    /** Integer portion of the price detected */
+    WHOLE: 2,
+    /** Decimal separator detected */
+    DECIMAL: 3,
+    /** Full price (Whole + Fraction) captured */
+    COMPLETE: 4,
+};
+
 let timeout = null;
 const MIN_REFRESH_INTERVAL = 500; // ms
 const nodesToProcess = new Set();
@@ -8,6 +33,171 @@ p, li, article, section
 `;
 
 let currentRate = 1;
+
+/**
+ * Returns the decimal and thousands separators for a price amount
+ * @param {string} amountStr Price as a string without leading or trailing symbol
+ * @returns Symbol for decimal separator (or null) and for thousands separator (or null) as array
+ */
+const getAmountSeps = (amountStr) => {
+    const possibleDecimalSeps = ['.', ','];
+    const allSeps = amountStr.match(/[.,'\s\u00A0]/g) || [];
+
+    let decimalSep = null;
+    const charAt_2 = amountStr.at(-2);
+    const charAt_3 = amountStr.at(-3);
+    if (possibleDecimalSeps.includes(charAt_2)) decimalSep = charAt_2;
+    else if (possibleDecimalSeps.includes(charAt_3)) decimalSep = charAt_3;
+
+    const thousandSep = allSeps.find((s) => { return s !== decimalSep; }) || null;
+
+    return [decimalSep, thousandSep];
+}
+
+/**
+ * Split a number into its whole and fraction components
+ * @param {number} amount Number to be split
+ * @param {number} activeRate
+ * @returns Array containing the whole portion and fraction portion, as strings
+ */
+const splitCalculateNumber = (amount, activeRate) => {
+    const [whole, fraction] = (amount * activeRate).toFixed(2).split('.');
+    return [whole, fraction];
+}
+
+/**
+ * Parses an amount string into a float
+ * @param {string} amountStr Price as a string without leading or trailing symbol
+ * @param {string} decimalSep Symbol for decimal separator
+ * @returns Float of the amount, or null if unable to be parsed
+ */
+const amountStrToFloat = (amountStr, decimalSep) => {
+    let normalized = amountStr.replace(/[ '\u00A0]/g, '');
+    if (decimalSep === ',') {
+        normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else {
+        normalized = normalized.replace(/,/g, '');
+    }
+
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Parse currency, thousands separator, and decimal separator in various formats
+ * @param {string} text The text content to find and apply price rate
+ * @param {number} activeRate
+ * @param {Object} sepPrice - The global price state object (mutated in place).
+ * @returns Object with the modified text and hasMatch boolean
+ */
+const applyRateInText = (text, activeRate, sepPrice, textNode) => {
+    const priceRegex = /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
+
+    let hasMatch = false;
+
+    const newText = text.replace(priceRegex, (match, leading, amountStr, trailing) => {
+        const hasCurrency = leading || trailing;
+        const previouslySeenCurrency = sepPrice.state == PriceStates.CURRENCY;
+        if (!hasCurrency && !previouslySeenCurrency) return match;
+
+        const [decimalSep, thousandSep] = getAmountSeps(amountStr);
+
+        let parsed = amountStrToFloat(amountStr, decimalSep);
+        if (!parsed) return match;
+
+        const [whole, fraction] = splitCalculateNumber(parsed, activeRate);
+
+        const formattedIntegers = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
+        const finalAmount = `${formattedIntegers}${decimalSep ?? "."}${fraction}`;
+
+        if (!hasCurrency && previouslySeenCurrency) {
+            if (decimalSep) {
+                sepPrice.state = PriceStates.COMPLETE;
+            } else {
+                sepPrice.whole = { node: textNode, value: parseInt(whole), thousandSep };
+                return match;
+            }
+        }
+        hasMatch = true;
+        return (leading ?? '') + finalAmount + (trailing ?? '');
+    });
+
+    return { newText, hasMatch };
+}
+
+/**
+ * Resets the price state object to its initial empty state.
+ * * Note: This function mutates the original object by reference.
+ * * @param {Object} obj - The price state object to be cleared.
+ * @param {PricePart} obj.whole - The integer part to reset.
+ * @param {PricePart} obj.fraction - The decimal part to reset.
+ * @param {number} obj.state - The state to return to {@link PriceStates.EMPTY}.
+ */
+const resetSepPrice = (obj) => {
+    obj.whole = null;
+    obj.fraction = null;
+    obj.state = PriceStates.EMPTY;
+};
+
+/**
+ * Updates the price state machine based on the content of the current text node.
+ * Handles prices spanning multiple nodes by tracking state transitions.
+ * * @param {string} text - The text content of the current node to analyze.
+ * @param {Node} textNode - The DOM text node currently being processed.
+ * @param {Object} sepPrice - The global price state object (mutated in place).
+ */
+const processSepPrice = (text, textNode, sepPrice) => {
+    // Node might contain a part of the price string, save and check neighbours
+    const currencies = /^(?:USD|EUR|CAD|[$€£])$/;
+    const currencyMatch = text.match(currencies);
+
+    if (currencyMatch) {
+        sepPrice.state = PriceStates.CURRENCY;
+    } else {
+        if (sepPrice.state == PriceStates.CURRENCY) {
+            // whole is already processed in the big regex
+            if (sepPrice.whole) sepPrice.state = PriceStates.WHOLE;
+            else resetSepPrice(sepPrice);
+        } else if (sepPrice.state == PriceStates.WHOLE) {
+            const decimalRegex = /[.,]/;
+            if (decimalRegex.test(text)) sepPrice.state++;
+            else sepPrice.state = PriceStates.COMPLETE;
+        } else if (sepPrice.state == PriceStates.DECIMAL) {
+            const match = text.match(/^(\d{2})\s*$/);
+            if (match) {
+                sepPrice.fraction = {
+                    node: textNode,
+                    value: parseInt(match[1]) 
+                };
+            }
+            sepPrice.state = PriceStates.COMPLETE;
+        } else {
+            // If it's not a currency and not a part of the number
+            if (text.trim().length > 0) resetSepPrice(sepPrice);
+        }
+    }
+}
+
+/**
+ * Calculates the converted price and updates the associated DOM text nodes.
+ * * @param {Object} sepPrice - The state object containing price parts and nodes.
+ * @param {PricePart} sepPrice.whole - The integer part of the price.
+ * @param {PricePart} [sepPrice.fraction] - The decimal part of the price.
+ * @param {number} sepPrice.state - The current state from {@link PriceStates}.
+ * @param {number} activeRate 
+ */
+const applySepPrice = (sepPrice, activeRate) => {
+    let total = 0;
+    // whole value may not exist if already processed by big regex 
+    if (sepPrice.whole?.value) total += sepPrice.whole.value;
+    if (sepPrice.fraction?.value) total += sepPrice.fraction.value / 100;
+
+    const [whole, fraction] = splitCalculateNumber(total, activeRate);
+    const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, sepPrice.whole?.thousandSep || '');
+    
+    if (sepPrice.whole?.node) sepPrice.whole.node.nodeValue = formattedWhole;
+    if (sepPrice.fraction?.node) sepPrice.fraction.node.nodeValue = fraction;
+}
 
 /**
  * Calculates and updates the price display on page for a DOM element and its
@@ -27,70 +217,51 @@ const calculatePrice = (element, rate) => {
         delete element.dataset.originalHtml;
     }
 
-    const priceRegex = /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
-
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
     let textNode;
     let modified = false;
     const elemInitialHtml = element.innerHTML;
+
+    /**
+     * Tracks price data spanning multiple text nodes.
+     */
+    let sepPrice = {
+        /** @type {PricePart} */
+        whole: { node: null, value: null, thousandSep: "" },
+        /** @type {PricePart} */
+        fraction: { node: null, value: null },
+        /** @type {PriceStates} */
+        state: PriceStates.CURRENCY,
+    };
     
     while (textNode = walker.nextNode()) {
         if (processedTextNodes.has(textNode)) continue;
         processedTextNodes.add(textNode);
 
         const originalText = textNode.nodeValue;
-
-        let hasMatch = false;
-
-        // parse currency, thousands separator, and decimal separator in various formats
-        const newText = originalText.replace(priceRegex, (match, leading, amountStr, trailing) => {
-            if (!leading && !trailing) return match;
-
-            const possibleDecimalSeps = ['.', ','];
-
-            let decimalSep = null;
-            const charAt_2 = amountStr.at(-2);
-            const charAt_3 = amountStr.at(-3);
-
-            if (possibleDecimalSeps.includes(charAt_2)) decimalSep = charAt_2;
-            else if (possibleDecimalSeps.includes(charAt_3)) decimalSep = charAt_3;
-
-            const allSeps = amountStr.match(/[.,'\s\u00A0]/g) || [];
-            const thousandSep = allSeps.find((s) => {
-                return s !== decimalSep;
-            }) || null;
-
-            let normalized = amountStr.replace(/[ '\u00A0]/g, '');
-            if (decimalSep === ',') {
-                normalized = normalized.replace(/\./g, '').replace(',', '.');
-            } else {
-                normalized = normalized.replace(/,/g, '');
-            }
-
-            const parsed = parseFloat(normalized);
-            if (isNaN(parsed)) return match;
-
-            const updatedValue = (parsed * activeRate).toFixed(2);
-            const [integers, decimals] = updatedValue.split('.');
-
-            const formattedIntegers = integers.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
-            
-            // Put it all together using the original decimal separator
-            const finalAmount = `${formattedIntegers}${decimalSep ?? "."}${decimals}`;
-
-            hasMatch = true;
-            return (leading ?? '') + finalAmount + (trailing ?? '');
-        });
+        const { newText, hasMatch } = applyRateInText(originalText, activeRate, sepPrice, textNode);
 
         if (hasMatch) {
+            // Node contains the whole price string
             textNode.nodeValue = newText;
+            modified = true;
+        } else {
+            // Node might contain a part of the price string, save and check neighbours
+            const currencies = /^(?:USD|EUR|CAD|[$€£])$/;
+            const currencyMatch = originalText.match(currencies);
+
+            if (currencyMatch) sepPrice.state = PriceStates.CURRENCY;
+            else processSepPrice(originalText, textNode, sepPrice);
+        }
+
+        if (sepPrice.state >= PriceStates.COMPLETE) {
+            applySepPrice(sepPrice, activeRate);
+            resetSepPrice(sepPrice);
             modified = true;
         }
     }
 
-    if (modified) {
-        element.dataset.originalHtml = elemInitialHtml;
-    }
+    if (modified) element.dataset.originalHtml = elemInitialHtml;
 }
 
 let observer = null; 
