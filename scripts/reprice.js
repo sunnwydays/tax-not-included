@@ -114,7 +114,7 @@ const applyRateInText = (text, activeRate, sepPrice, textNode) => {
             if (decimalSep) {
                 sepPrice.state = PriceStates.COMPLETE;
             } else {
-                sepPrice.whole = { node: textNode, value: parseInt(whole), thousandSep };
+                sepPrice.whole = { node: textNode, value: parsed, thousandSep };
                 return match;
             }
         }
