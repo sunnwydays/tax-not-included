@@ -300,6 +300,10 @@ const processBatch = () => {
  * Reset prices in the DOM to their original values
  */
 const resetPrices = () => {
+    if (observer) observer.disconnect();
+    clearTimeout(timeout);
+    nodesToProcess.clear();
+
     document.querySelectorAll('[data-original-html]').forEach(el => {
         el.innerHTML = el.dataset.originalHtml;
         delete el.dataset.originalHtml;
@@ -318,7 +322,9 @@ const applyRates = async () => {
     ]);
 
     currentRate = getCombinedRate(sync.rates || {});
-
+    
+    resetPrices(); // avoid double calculations
+    
     const isEnabled = local.taxOn !== false; // True if undefined
     if (isEnabled) {
         document.querySelectorAll(tagsWithPrices).forEach(el => {
@@ -382,18 +388,13 @@ const initializeObservers = () => {
 
     // Detect and apply user's rate changes
     chrome.storage.onChanged.addListener(async (changes) => {
-        if (changes.taxOn) {
-            const isTaxOn = changes.taxOn.newValue;
-            if (isTaxOn) applyRates();
-            else resetPrices();
-        }
-
-        // Also handle rate changes if the tax is currently active
-        if (changes.rates) {
+        if (changes.taxOn || changes.rates) {
             const { taxOn } = await chrome.storage.local.get(['taxOn']);
-            if (taxOn !== false) {
+            if (taxOn === false) {
                 resetPrices();
-                applyRates();
+            } else {
+                await applyRates();
+                startObserving();
             }
         }
     });
