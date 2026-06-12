@@ -27,6 +27,7 @@ let timeout = null;
 const MIN_REFRESH_INTERVAL = 500; // ms
 const nodesToProcess = new Set();
 let processedTextNodes = new WeakSet(); // double-calculation issues if you mark parents instead
+const originalValues = new Map(); // text node -> original string, restored on reset
 const tagsWithPrices = `
 span:not(script span, style span), div:not(nav div), 
 p, li, article, section
@@ -195,8 +196,18 @@ const applySepPrice = (sepPrice, activeRate) => {
     const [whole, fraction] = splitCalculateNumber(total, activeRate);
     const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, sepPrice.whole?.thousandSep || '');
     
-    if (sepPrice.whole?.node) sepPrice.whole.node.nodeValue = formattedWhole;
-    if (sepPrice.fraction?.node) sepPrice.fraction.node.nodeValue = fraction;
+    if (sepPrice.whole?.node) {
+        if (!originalValues.has(sepPrice.whole.node)) {
+            originalValues.set(sepPrice.whole.node, sepPrice.whole.node.nodeValue);
+        }
+        sepPrice.whole.node.nodeValue = formattedWhole;
+    }
+    if (sepPrice.fraction?.node) {
+        if (!originalValues.has(sepPrice.fraction.node)) {
+            originalValues.set(sepPrice.fraction.node, sepPrice.fraction.node.nodeValue);
+        }
+        sepPrice.fraction.node.nodeValue = fraction;
+    }
 }
 
 /**
@@ -243,6 +254,7 @@ const calculatePrice = (element, rate) => {
 
         if (hasMatch) {
             // Node contains the whole price string
+            if (!originalValues.has(textNode)) originalValues.set(textNode, originalText);
             textNode.nodeValue = newText;
             modified = true;
         } else {
@@ -304,11 +316,18 @@ const resetPrices = () => {
     clearTimeout(timeout);
     nodesToProcess.clear();
 
+    // Restore each text node we modified; nodes the site has since replaced
+    // (e.g. on a colour/style swap) are disconnected and skipped, so stale
+    // markup is never re-injected
+    originalValues.forEach((originalText, node) => {
+        if (node.isConnected) node.nodeValue = originalText;
+    });
+    originalValues.clear();
+
     document.querySelectorAll('[data-original-html]').forEach(el => {
-        el.innerHTML = el.dataset.originalHtml;
         delete el.dataset.originalHtml;
     });
-    
+
     processedTextNodes = new WeakSet();
 }
 
