@@ -172,11 +172,17 @@ const initRateEntry = (template, rateName, rate) => {
     if (removeBtn) removeBtn.addEventListener('click', async () => {
         if (Object.keys(rates).length <= MIN_RATES) return;
 
-        clone.classList.add('opacity-0', 'scale-95', 'transition-all', 'duration-200');
+        // Update the data right away; only the DOM removal waits for the
+        // transition, so a missed event can't lose the deletion
         delete rates[clone.dataset.currentKey];
-        clone.remove();
         updateTotalDisplay();
         updateRateControls();
+
+        clone.classList.add('opacity-0', 'scale-95', 'transition-all', 'duration-200');
+        const removeClone = () => clone.remove();
+        clone.addEventListener('transitionend', removeClone, { once: true });
+        setTimeout(removeClone, 250); // fallback if transitionend never fires
+
         await chrome.storage.sync.set({ "rates": rates });
     });
     
