@@ -379,6 +379,26 @@ const initializeObservers = () => {
         let shouldProcess = false;
 
         for (const mutation of mutations) {
+            const target = mutation.target.nodeType === Node.TEXT_NODE
+                ? mutation.target.parentElement
+                : mutation.target;
+
+            // The site changed this text in place (e.g. a reactive price
+            // update), so our processed/original records for it are stale
+            if (mutation.type === 'characterData' && mutation.target.nodeType === Node.TEXT_NODE) {
+                processedTextNodes.delete(mutation.target);
+                originalValues.delete(mutation.target);
+            }
+
+            // The site changed content under an element we marked as
+            // processed; clear the marker so the new content gets calculated
+            if (target && target.closest) {
+                const modifiedElement = target.closest('[data-original-html]');
+                if (modifiedElement) {
+                    delete modifiedElement.dataset.originalHtml;
+                }
+            }
+
             if (mutation.addedNodes.length > 0) {
                 mutation.addedNodes.forEach(node => {
                     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -387,17 +407,7 @@ const initializeObservers = () => {
                     }
                 });
             } else if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                const target = mutation.target.nodeType === Node.TEXT_NODE 
-                    ? mutation.target.parentElement 
-                    : mutation.target;
-
                 if (target && target.closest) {
-                    const modifiedElement = target.closest('[data-original-html]');
-                    
-                    if (modifiedElement) {
-                        delete modifiedElement.dataset.originalHtml;
-                    }
-
                     const relevantParent = target.closest(tagsWithPrices) || target;
                     nodesToProcess.add(relevantParent);
                     shouldProcess = true;
