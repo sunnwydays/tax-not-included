@@ -50,14 +50,22 @@
     <h1 class="text-xl m-0 p-4 bg-[#517a5e] text-white shadow-sm">
         Tax Not Included
     </h1>
-    <button 
-        id="toggle-tax" 
+    <button
+        id="toggle-tax"
         class="
             text-l px-4 py-2 m-4 cursor-pointer shadow-sm
             border-[#81986e] border-solid border-3 rounded-md
-            hover:bg-[#81986e] hover:text-white transition-all 
+            hover:bg-[#81986e] hover:text-white transition-all
         "
     ></button>
+    <p class="text-xs text-gray-500 mt-0 mb-3">
+        Shortcut:
+        <kbd id="shortcut-display" class="border border-gray-400 rounded px-1"></kbd>
+        <button
+            id="edit-shortcut"
+            class="cursor-pointer underline hover:text-gray-700 transition-all"
+        >Change</button>
+    </p>
     <form id="rate-form">
         <ul id="rate-list" class="space-y-2">
             <!-- input boxes go here -->

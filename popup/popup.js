@@ -190,6 +190,24 @@ const initRateEntry = (template, rateName, rate) => {
 }
 
 /**
+ * Shows the current toggle-tax keyboard shortcut and wires the Change button
+ * to the browser's shortcut editor (MV3 cannot rebind commands directly)
+ */
+const initShortcutEditor = async () => {
+    const display = document.querySelector('#shortcut-display');
+    if (display) {
+        const commands = await chrome.commands.getAll();
+        const toggleCmd = commands.find(cmd => cmd.name === 'toggle-tax');
+        display.textContent = toggleCmd?.shortcut || 'not set';
+    }
+
+    const editBtn = document.querySelector('#edit-shortcut');
+    if (editBtn) editBtn.addEventListener('click', () => {
+        chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    });
+};
+
+/**
  * Displays the popup with the existing rates (or default rates), tax toggle,
  * input elements, and total rate display.
  */
@@ -228,6 +246,7 @@ const initPopup = async () => {
 
     updateTotalDisplay();
     updateRateControls();
+    initShortcutEditor();
 }
 
 initPopup();
