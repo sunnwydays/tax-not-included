@@ -349,6 +349,9 @@ const applyRates = async () => {
         document.querySelectorAll(tagsWithPrices).forEach(el => {
             calculatePrice(el);
         });
+        // resetPrices disconnected the observer; reconnect so dynamically
+        // added prices (SPAs, lazy loading) keep being processed
+        startObserving();
     }
 }
 
@@ -413,7 +416,6 @@ const initializeObservers = () => {
                 resetPrices();
             } else {
                 await applyRates();
-                startObserving();
             }
         }
     });
