@@ -1,0 +1,10 @@
+{
+  "name": "tax-not-included",
+  "private": true,
+  "scripts": {
+    "test": "node test/reprice.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
