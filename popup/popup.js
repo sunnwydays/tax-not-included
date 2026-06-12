@@ -3,6 +3,10 @@
  */
 const defaultRates = { 'Tax': 1.13 };
 
+/** Minimum and maximum number of rates allowed */
+const MIN_RATES = 1;
+const MAX_RATES = 15;
+
 /** * @type {Object.<string, number>} 
  * @description Live dictionary of tax names and their corresponding multipliers.
  */
@@ -50,18 +54,36 @@ const updateTotalDisplay = () => {
 };
 
 /**
+ * Enables or disables the add and remove buttons so the number of rates
+ * stays between MIN_RATES and MAX_RATES
+ */
+const updateRateControls = () => {
+    const count = Object.keys(rates).length;
+
+    const newRateBtn = document.querySelector('#new-rate');
+    if (newRateBtn) newRateBtn.disabled = count >= MAX_RATES;
+
+    document.querySelectorAll('.remove-rate').forEach(btn => {
+        btn.disabled = count <= MIN_RATES;
+    });
+};
+
+/**
  * Creates an entry for a new rate with a unique name
  * @param {string} rateName Name of rate
  * @param {number} rate Rate
  */
 const addNewRate = async (rateName, rate) => {
+    if (Object.keys(rates).length >= MAX_RATES) return;
+
     const list = document.querySelector('#rate-list');
     const template = document.querySelector('#rate-template');
-    
+
     const uniqueName = getUnusedName(rateName);
     rates[uniqueName] = rate;
     await chrome.storage.sync.set({ "rates": rates });
     list.appendChild(initRateEntry(template, uniqueName, rate));
+    updateRateControls();
 }
 
 /**
@@ -148,10 +170,13 @@ const initRateEntry = (template, rateName, rate) => {
     
     const removeBtn = clone.querySelector('.remove-rate');
     if (removeBtn) removeBtn.addEventListener('click', async () => {
+        if (Object.keys(rates).length <= MIN_RATES) return;
+
         clone.classList.add('opacity-0', 'scale-95', 'transition-all', 'duration-200');
         delete rates[clone.dataset.currentKey];
         clone.remove();
         updateTotalDisplay();
+        updateRateControls();
         await chrome.storage.sync.set({ "rates": rates });
     });
     
@@ -194,8 +219,9 @@ const initPopup = async () => {
     
     const newRateBtn = document.querySelector('#new-rate');
     newRateBtn.addEventListener("click", () => addNewRate('my rate', 1));
-    
+
     updateTotalDisplay();
+    updateRateControls();
 }
 
 initPopup();

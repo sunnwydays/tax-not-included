@@ -40,6 +40,7 @@
                     cursor-pointer text-xs remove-rate size-6 m-0
                     bg-[#b03030] hover:bg-[#4a0404] transition-all rounded-md
                     flex justify-center items-center
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#b03030]
                 ">🗑️</button>
             </div>
 
@@ -62,11 +63,12 @@
             <!-- input boxes go here -->
         </ul>
     </form>
-    <button 
-        id="new-rate" 
+    <button
+        id="new-rate"
         class="
             cursor-pointer p-3
             hover:text-gray-500  transition-all
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-inherit
         "
     >+ Add multiplier</button>
     <hr class="font-bold text-[#517a5e] w-52 mx-auto border-1 rounded-md">
