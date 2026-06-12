@@ -29,9 +29,11 @@ const nodesToProcess = new Set();
 let processedTextNodes = new WeakSet(); // double-calculation issues if you mark parents instead
 const originalValues = new Map(); // text node -> original string, restored on reset
 const tagsWithPrices = `
-span:not(script span, style span), div:not(nav div), 
+span:not(script span, style span), div:not(nav div),
 p, li, article, section
 `;
+// Text in these is code or markup, never a price (e.g. "$1" in a shell snippet)
+const nonPriceContainers = 'pre, code, kbd, samp, script, style, textarea';
 
 let currentRate = 1;
 
@@ -156,9 +158,10 @@ const processSepPrice = (text, textNode, sepPrice) => {
         sepPrice.state = PriceStates.CURRENCY;
     } else {
         if (sepPrice.state == PriceStates.CURRENCY) {
-            // whole is already processed in the big regex
+            // whole is already processed in the big regex; whitespace-only
+            // nodes between the symbol and the amount keep the state alive
             if (sepPrice.whole) sepPrice.state = PriceStates.WHOLE;
-            else resetSepPrice(sepPrice);
+            else if (text.trim().length > 0) resetSepPrice(sepPrice);
         } else if (sepPrice.state == PriceStates.WHOLE) {
             const decimalRegex = /[.,]/;
             if (decimalRegex.test(text)) sepPrice.state++;
@@ -228,21 +231,27 @@ const calculatePrice = (element, rate) => {
         delete element.dataset.originalHtml;
     }
 
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, (node) =>
+        node.parentElement?.closest(nonPriceContainers)
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT
+    );
     let textNode;
     let modified = false;
     const elemInitialHtml = element.innerHTML;
 
     /**
-     * Tracks price data spanning multiple text nodes.
+     * Tracks price data spanning multiple text nodes. Starts EMPTY so bare
+     * numbers (token counts, timings, ratings) are never treated as prices
+     * until a real currency symbol is seen.
      */
     let sepPrice = {
-        /** @type {PricePart} */
-        whole: { node: null, value: null, thousandSep: "" },
-        /** @type {PricePart} */
-        fraction: { node: null, value: null },
+        /** @type {?PricePart} */
+        whole: null,
+        /** @type {?PricePart} */
+        fraction: null,
         /** @type {PriceStates} */
-        state: PriceStates.CURRENCY,
+        state: PriceStates.EMPTY,
     };
     
     while (textNode = walker.nextNode()) {
