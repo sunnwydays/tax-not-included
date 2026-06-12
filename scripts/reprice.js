@@ -291,8 +291,12 @@ const startObserving = () => {
  * Calculates and updates prices for a set of elements (nodesToPrices) if taxOn
  */
 const processBatch = () => {
-    chrome.storage.local.get(['taxOn'], (res) => {
-        if (res.taxOn === false || nodesToProcess.size === 0) {
+    Promise.all([
+        chrome.storage.local.get(['taxOn']),
+        chrome.storage.sync.get(['disabledSites'])
+    ]).then(([local, sync]) => {
+        const siteDisabled = (sync.disabledSites || []).includes(location.hostname);
+        if (local.taxOn === false || siteDisabled || nodesToProcess.size === 0) {
             nodesToProcess.clear();
             return;
         }
@@ -337,14 +341,15 @@ const resetPrices = () => {
 const applyRates = async () => {
     const [local, sync] = await Promise.all([
         chrome.storage.local.get(['taxOn']),
-        chrome.storage.sync.get(['rates'])
+        chrome.storage.sync.get(['rates', 'disabledSites'])
     ]);
 
     currentRate = getCombinedRate(sync.rates || {});
-    
+
     resetPrices(); // avoid double calculations
-    
-    const isEnabled = local.taxOn !== false; // True if undefined
+
+    const siteDisabled = (sync.disabledSites || []).includes(location.hostname);
+    const isEnabled = local.taxOn !== false && !siteDisabled; // taxOn true if undefined
     if (isEnabled) {
         document.querySelectorAll(tagsWithPrices).forEach(el => {
             calculatePrice(el);
@@ -408,15 +413,12 @@ const initializeObservers = () => {
 
     startObserving();
 
-    // Detect and apply user's rate changes
+    // Detect and apply changes to rates, the tax toggle, or disabled sites.
+    // applyRates resets first and only recalculates when enabled here, so it
+    // covers both directions
     chrome.storage.onChanged.addListener(async (changes) => {
-        if (changes.taxOn || changes.rates) {
-            const { taxOn } = await chrome.storage.local.get(['taxOn']);
-            if (taxOn === false) {
-                resetPrices();
-            } else {
-                await applyRates();
-            }
+        if (changes.taxOn || changes.rates || changes.disabledSites) {
+            await applyRates();
         }
     });
 }

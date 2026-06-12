@@ -208,6 +208,43 @@ const initShortcutEditor = async () => {
 };
 
 /**
+ * Shows a button to disable or enable the extension on the current site.
+ * Stays hidden on pages without a regular hostname (chrome://, about:, files)
+ */
+const initSiteToggle = async () => {
+    const btn = document.querySelector('#toggle-site');
+    if (!btn) return;
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let hostname = null;
+    try {
+        const url = new URL(tab?.url || '');
+        if (['http:', 'https:'].includes(url.protocol)) hostname = url.hostname;
+    } catch { /* leave the button hidden */ }
+    if (!hostname) return;
+
+    const { disabledSites } = await chrome.storage.sync.get(['disabledSites']);
+    let isDisabled = (disabledSites || []).includes(hostname);
+
+    const render = () => {
+        btn.textContent = `${isDisabled ? 'Enable' : 'Disable'} on ${hostname}`;
+    };
+    render();
+    btn.classList.remove('hidden');
+
+    btn.addEventListener('click', async () => {
+        const { disabledSites: current } = await chrome.storage.sync.get(['disabledSites']);
+        const sites = current || [];
+        const next = isDisabled
+            ? sites.filter(host => host !== hostname)
+            : [...sites, hostname];
+        isDisabled = !isDisabled;
+        render();
+        await chrome.storage.sync.set({ disabledSites: next });
+    });
+};
+
+/**
  * Displays the popup with the existing rates (or default rates), tax toggle,
  * input elements, and total rate display.
  */
@@ -247,6 +284,7 @@ const initPopup = async () => {
     updateTotalDisplay();
     updateRateControls();
     initShortcutEditor();
+    initSiteToggle();
 }
 
 initPopup();
