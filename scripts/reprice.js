@@ -72,15 +72,16 @@ const splitCalculateNumber = (amount, activeRate) => {
  * Parses an amount string into a float
  * @param {string} amountStr Price as a string without leading or trailing symbol
  * @param {string} decimalSep Symbol for decimal separator
+ * @param {string} thousandSep Symbol for thousands separator
  * @returns Float of the amount, or null if unable to be parsed
  */
-const amountStrToFloat = (amountStr, decimalSep) => {
+const amountStrToFloat = (amountStr, decimalSep, thousandSep) => {
     let normalized = amountStr.replace(/[ '\u00A0]/g, '');
-    if (decimalSep === ',') {
-        normalized = normalized.replace(/\./g, '').replace(',', '.');
-    } else {
-        normalized = normalized.replace(/,/g, '');
-    }
+    // Strip the thousands separator wherever it lands (e.g. "1.234" meaning
+    // 1234), since without this a lone "." grouping with no decimal part
+    // (common outside the US) is left in place and misread as a decimal point
+    if (thousandSep) normalized = normalized.split(thousandSep).join('');
+    if (decimalSep === ',') normalized = normalized.replace(',', '.');
 
     const parsed = parseFloat(normalized);
     return isNaN(parsed) ? null : parsed;
@@ -105,13 +106,16 @@ const applyRateInText = (text, activeRate, sepPrice, textNode) => {
 
         const [decimalSep, thousandSep] = getAmountSeps(amountStr);
 
-        let parsed = amountStrToFloat(amountStr, decimalSep);
+        let parsed = amountStrToFloat(amountStr, decimalSep, thousandSep);
         if (!parsed) return match;
 
         const [whole, fraction] = splitCalculateNumber(parsed, activeRate);
 
         const formattedIntegers = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
-        const finalAmount = `${formattedIntegers}${decimalSep ?? "."}${fraction}`;
+        // Fall back to a decimal separator distinct from the thousands one
+        // (e.g. a "1.234" whole amount uses "." for grouping, so cents need ",")
+        const finalDecimalSep = decimalSep ?? (thousandSep === '.' ? ',' : '.');
+        const finalAmount = `${formattedIntegers}${finalDecimalSep}${fraction}`;
 
         if (!hasCurrency && previouslySeenCurrency) {
             if (decimalSep) {

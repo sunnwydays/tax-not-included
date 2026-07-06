@@ -55,6 +55,9 @@ async function run() {
     const html = `<!doctype html><html><body>
         <div id="product"><span id="price">$10.00</span></div>
         <div id="sep"><span>$</span><span id="sw">15</span><span>.</span><span id="sf">99</span></div>
+        <div id="euro-whole">1.234 EUR</div>
+        <div id="euro-full">$1.234,56</div>
+        <div id="us-thousands">$1,234</div>
     </body></html>`;
 
     const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
@@ -73,6 +76,12 @@ async function run() {
     // 15.99 * 1.13 = 18.0687 -> 18.07
     assertEq($('#sw').textContent, '18', 'split whole taxed');
     assertEq($('#sf').textContent, '07', 'split fraction taxed');
+
+    // 1b. Dot-as-thousands-separator amounts must not be misread as decimals
+    // (1.234 EUR is 1234, not 1.234; regression for a 1000x-too-small bug)
+    assertEq($('#euro-whole').textContent, '1.394,42 EUR', 'euro whole-number thousands sep taxed');
+    assertEq($('#euro-full').textContent, '$1.395,05', 'euro full-format (dot thousands, comma decimal) taxed');
+    assertEq($('#us-thousands').textContent, '$1,394.42', 'US comma-thousands taxed');
 
     // 2. Toggle off restores original prices
     await chrome.storage.local.set({ taxOn: false });
