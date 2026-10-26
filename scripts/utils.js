@@ -34,6 +34,14 @@ const getCombinedRate = ratesObj => {
 }
 
 /**
+ * Rounds to the nearest cent, with halves rounding up. Float noise is removed
+ * first, so 10.50 x 1.13 (11.864999...) rounds to 11.87 rather than 11.86
+ * @param {number} amount
+ * @returns {string} The amount with two decimals, e.g. "11.87"
+ */
+const toCents = amount => (Math.round(Number((amount * 100).toPrecision(12))) / 100).toFixed(2);
+
+/**
  * Returns the decimal and thousands separators for a price amount
  * @param {string} amountStr Price as a string without leading or trailing symbol
  * @returns Symbol for decimal separator (or null) and for thousands separator (or null) as array
@@ -79,6 +87,20 @@ const amountStrToFloat = (amountStr, decimalSep, thousandSep) => {
  */
 const createPriceRegex = () =>
     /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
+
+/**
+ * Formats an amount rounded to cents, with the given separators
+ * @param {number} amount
+ * @param {?string} thousandSep Grouping separator, or null for none
+ * @param {?string} decimalSep Decimal separator, or null to pick one that
+ *   differs from the thousands separator (a "1.234" amount needs "," for cents)
+ * @returns {string} e.g. "1,234.50" or "1.234,50"
+ */
+const formatAmount = (amount, thousandSep, decimalSep) => {
+    const [whole, fraction] = toCents(amount).split('.');
+    const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
+    return `${groupedWhole}${decimalSep ?? (thousandSep === '.' ? ',' : '.')}${fraction}`;
+}
 
 /**
  * @typedef {Object} ParsedPrice
@@ -167,7 +189,7 @@ const hasUnitPrice = text => unitPriceRegex.test(text);
  */
 const formatUnitPrice = (price, quantity) => {
     const { size, label } = unitPriceBases[quantity.unit];
-    const perUnit = (price.value / quantity.amount * size).toFixed(2);
-    const decimalSep = price.decimalSep ?? (price.thousandSep === '.' ? ',' : '.');
-    return `${price.leading}${perUnit.replace('.', decimalSep)}${price.trailing}/${label}`;
+    const perUnit = formatAmount(price.value / quantity.amount * size, null, price.decimalSep
+        ?? (price.thousandSep === '.' ? ',' : '.'));
+    return `${price.leading}${perUnit}${price.trailing}/${label}`;
 }

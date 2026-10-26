@@ -16,6 +16,7 @@ async function run() {
         <div id="euro-whole">1.234 EUR</div>
         <div id="euro-full">$1.234,56</div>
         <div id="us-thousands">$1,234</div>
+        <div id="half-cent">$10.50</div>
     </body></html>`;
 
     const { window } = loadPage(html);
@@ -35,6 +36,10 @@ async function run() {
     assertEq($('#euro-whole').textContent, '1.394,42 EUR', 'euro whole-number thousands sep taxed');
     assertEq($('#euro-full').textContent, '$1.395,05', 'euro full-format (dot thousands, comma decimal) taxed');
     assertEq($('#us-thousands').textContent, '$1,394.42', 'US comma-thousands taxed');
+
+    // 1c. A half cent rounds up even when float maths lands just under it
+    // (10.50 * 1.13 is 11.864999... in floating point, not 11.865)
+    assertEq($('#half-cent').textContent, '$11.87', 'half cent rounds up');
 
     // 2. Toggle off restores original prices
     await chrome.storage.local.set({ taxOn: false });

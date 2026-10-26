@@ -158,17 +158,6 @@ const refreshTaxSummaries = () => {
 }
 
 /**
- * Split a number into its whole and fraction components
- * @param {number} amount Number to be split
- * @param {number} activeRate
- * @returns Array containing the whole portion and fraction portion, as strings
- */
-const splitCalculateNumber = (amount, activeRate) => {
-    const [whole, fraction] = (amount * activeRate).toFixed(2).split('.');
-    return [whole, fraction];
-}
-
-/**
  * Parse currency, thousands separator, and decimal separator in various formats
  * @param {string} text The text content to find and apply price rate
  * @param {number} activeRate
@@ -190,13 +179,7 @@ const applyRateInText = (text, activeRate, sepPrice, textNode) => {
         let parsed = amountStrToFloat(amountStr, decimalSep, thousandSep);
         if (!parsed) return match;
 
-        const [whole, fraction] = splitCalculateNumber(parsed, activeRate);
-
-        const formattedIntegers = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSep || '');
-        // Fall back to a decimal separator distinct from the thousands one
-        // (e.g. a "1.234" whole amount uses "." for grouping, so cents need ",")
-        const finalDecimalSep = decimalSep ?? (thousandSep === '.' ? ',' : '.');
-        const finalAmount = `${formattedIntegers}${finalDecimalSep}${fraction}`;
+        const finalAmount = formatAmount(parsed * activeRate, thousandSep, decimalSep);
 
         if (!hasCurrency && previouslySeenCurrency) {
             if (decimalSep) {
@@ -281,9 +264,10 @@ const applySepPrice = (sepPrice, activeRate) => {
     if (sepPrice.whole?.value) total += sepPrice.whole.value;
     if (sepPrice.fraction?.value) total += sepPrice.fraction.value / 100;
 
-    const [whole, fraction] = splitCalculateNumber(total, activeRate);
-    const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, sepPrice.whole?.thousandSep || '');
-    
+    const thousandSep = sepPrice.whole?.thousandSep;
+    const decimalSep = thousandSep === '.' ? ',' : '.';
+    const [formattedWhole, fraction] = formatAmount(total * activeRate, thousandSep, decimalSep).split(decimalSep);
+
     if (sepPrice.whole?.node) {
         if (!originalValues.has(sepPrice.whole.node)) {
             originalValues.set(sepPrice.whole.node, sepPrice.whole.node.nodeValue);
@@ -301,12 +285,12 @@ const applySepPrice = (sepPrice, activeRate) => {
 /**
  * Calculates and updates the price display on page for a DOM element and its
  * children (only including children tagsWithPrices)
- * @param {HTMLElement} element 
- * @param {number} rate 
- * @returns 
+ * @param {HTMLElement} element
+ * @param {number} rate
+ * @returns
  */
 const calculatePrice = (element, rate) => {
-    const activeRate = rate || currentRate; 
+    const activeRate = rate || currentRate;
     if (!activeRate || activeRate === 1 || !element) return;
     if (element.closest('[data-original-html]')) return;
 
@@ -340,7 +324,7 @@ const calculatePrice = (element, rate) => {
         /** @type {PriceStates} */
         state: PriceStates.EMPTY,
     };
-    
+
     while (textNode = walker.nextNode()) {
         processedTextNodes.add(textNode);
 
