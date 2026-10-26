@@ -1,3 +1,18 @@
+/** * @type {Object.<string, number>}
+ * @description Default tax rates used until the user saves their own.
+ */
+const defaultRates = { 'Tax': 1.13 };
+
+/**
+ * Returns the saved rates, or the defaults if none have been saved yet
+ * @param {?Object.<string, number>} savedRates Rates from chrome.storage.sync
+ * @returns {Object.<string, number>} A copy, safe to modify
+ */
+const getRatesOrDefault = savedRates => {
+    const hasRates = savedRates && Object.keys(savedRates).length > 0;
+    return { ...(hasRates ? savedRates : defaultRates) };
+}
+
 /**
  * Returns the cumulative rate
  * @param {Object.<string, number>} ratesObj Object of rate names and rates

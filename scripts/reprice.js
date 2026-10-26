@@ -472,7 +472,8 @@ const applyRates = async () => {
         chrome.storage.sync.get(['rates', 'disabledSites'])
     ]);
 
-    currentRate = getCombinedRate(sync.rates || {});
+    // Before the popup ever saves, show the same default rate it displays
+    currentRate = getCombinedRate(getRatesOrDefault(sync.rates));
 
     resetPrices(); // avoid double calculations
 

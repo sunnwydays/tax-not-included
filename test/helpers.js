@@ -9,9 +9,8 @@ const repriceCode = fs.readFileSync(path.join(ROOT, 'scripts/reprice.js'), 'utf8
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Minimal chrome.storage stub with onChanged propagation
-const makeChromeStub = () => {
+const makeChromeStub = (syncStore = { rates: { Tax: 1.13 } }) => {
     const localStore = {};
-    const syncStore = { rates: { Tax: 1.13 } };
     const listeners = [];
 
     const pick = (store, keys) => {
@@ -44,11 +43,11 @@ const makeChromeStub = () => {
 
 // Loads a page, runs the extension, and returns the live window plus the
 // body HTML as it stood before the extension touched it.
-const loadPage = (html, url = 'https://example.com/') => {
+const loadPage = (html, url = 'https://example.com/', syncStore) => {
     const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
     const { window } = dom;
     const before = window.document.body.innerHTML;
-    window.chrome = makeChromeStub();
+    window.chrome = makeChromeStub(syncStore);
     // Same as the browser does via manifest content_scripts
     window.eval(utilsCode + '\n' + repriceCode);
     return { window, before };

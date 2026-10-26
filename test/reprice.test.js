@@ -83,6 +83,11 @@ async function run() {
     await sleep(100);
     assertEq($('#price2').textContent, '$33.90', '#30: re-enabled site taxed again');
 
+    // 8. Fresh install: no rates saved yet, so the popup's default applies
+    const fresh = loadPage('<!doctype html><html><body><span id="p">$10.00</span></body></html>', 'https://example.com/', {});
+    await sleep(100);
+    assertEq(fresh.window.document.querySelector('#p').textContent, '$11.30', 'default rate applied before any rates are saved');
+
     console.log(failures === 0 ? 'ALL TESTS PASSED' : `${failures} FAILURE(S)`);
     process.exit(failures === 0 ? 0 : 1);
 }

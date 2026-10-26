@@ -1,8 +1,3 @@
-/** * @type {Object.<string, number>} 
- * @description Default tax rates used when rates is empty.
- */
-const defaultRates = { 'Tax': 1.13 };
-
 /** Minimum and maximum number of rates allowed */
 const MIN_RATES = 1;
 const MAX_RATES = 15;
@@ -250,9 +245,7 @@ const initSiteToggle = async () => {
  */
 const initPopup = async () => {
     const { rates: syncedRates } = await chrome.storage.sync.get(['rates']);
-    rates = (syncedRates && Object.keys(syncedRates).length > 0) 
-    ? syncedRates 
-    : defaultRates;
+    rates = getRatesOrDefault(syncedRates);
     
     const { taxOn } = await chrome.storage.local.get(['taxOn']);
     const isCurrentlyOn = (taxOn === undefined) ? true : taxOn;
