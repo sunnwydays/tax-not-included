@@ -48,9 +48,10 @@ const notTaxLineRegex = /\b(?:before|excl\w*|calculated|not included|free)\b/i;
 // e.g. "Total (taxes included)", "incl. VAT", "Prices include all taxes"
 const taxIncludedRegex = /\b(?:tax(?:es)?|vat|gst|hst)\s+(?:incl(?:uded|usive|\.)?|incluses)|\bincl(?:udes?|uded|uding|\.)?\s+(?:all\s+(?:applicable\s+)?)?(?:tax(?:es)?|vat|gst|hst)\b|\bTTC\b/i;
 const totalLabelRegex = /^\W*(?:order\s+|grand\s+|estimated\s+|final\s+)?total\b/i;
-const priceInTextRegex = /[$€£]\s*\d|\b(?:USD|EUR|CAD)\s*\d|\d\s*(?:[$€£]|(?:USD|EUR|CAD)\b)/g;
+const priceInTextRegex = new RegExp(`${currencySymbolSource}\\s*\\d|\\b${currencyCodeSource}\\s*\\d`
+    + `|\\d\\s*(?:${currencySymbolSource}|${currencyCodeSource}\\b)`, 'g');
 // Text that could be all or part of a price
-const pricePieceRegex = /\d|[$€£]|\b(?:USD|EUR|CAD)\b/;
+const pricePieceRegex = new RegExp(`\\d|${currencySymbolSource}|\\b${currencyCodeSource}\\b`);
 
 // Unit prices (#14) go on products whose title gives a quantity
 const CARD_MAX_CHARS = 300; // longer text is more than one product
@@ -218,11 +219,7 @@ const resetSepPrice = (obj) => {
  * @param {Object} sepPrice - The global price state object (mutated in place).
  */
 const processSepPrice = (text, textNode, sepPrice) => {
-    // Node might contain a part of the price string, save and check neighbours
-    const currencies = /^(?:USD|EUR|CAD|[$€£])$/;
-    const currencyMatch = text.match(currencies);
-
-    if (currencyMatch) {
+    if (currencyOnlyRegex.test(text)) {
         sepPrice.state = PriceStates.CURRENCY;
     } else {
         if (sepPrice.state == PriceStates.CURRENCY) {
@@ -338,11 +335,7 @@ const calculatePrice = (element, rate) => {
             modified = true;
         } else {
             // Node might contain a part of the price string, save and check neighbours
-            const currencies = /^(?:USD|EUR|CAD|[$€£])$/;
-            const currencyMatch = originalText.match(currencies);
-
-            if (currencyMatch) sepPrice.state = PriceStates.CURRENCY;
-            else processSepPrice(originalText, textNode, sepPrice);
+            processSepPrice(originalText, textNode, sepPrice);
         }
 
         if (sepPrice.state >= PriceStates.COMPLETE) {

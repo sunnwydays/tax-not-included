@@ -41,6 +41,15 @@ const getCombinedRate = ratesObj => {
  */
 const toCents = amount => (Math.round(Number((amount * 100).toPrecision(12))) / 100).toFixed(2);
 
+// Currencies a price can be marked with. A code or symbol added here is
+// picked up by every price pattern
+const currencyCodes = ['USD', 'EUR', 'CAD'];
+const currencySymbols = ['$', '€', '£'];
+const currencyCodeSource = `(?:${currencyCodes.join('|')})`;
+const currencySymbolSource = `[${currencySymbols.join('')}]`;
+/** Text that is only a currency, e.g. "$" in its own element */
+const currencyOnlyRegex = new RegExp(`^(?:${currencyCodeSource}|${currencySymbolSource})$`);
+
 /**
  * Returns the decimal and thousands separators for a price amount
  * @param {string} amountStr Price as a string without leading or trailing symbol
@@ -85,8 +94,12 @@ const amountStrToFloat = (amountStr, decimalSep, thousandSep) => {
  * (a fresh one each time, since a global regex keeps state between uses)
  * @returns {RegExp} Groups: leading currency, amount, trailing currency
  */
-const createPriceRegex = () =>
-    /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
+const createPriceRegex = () => new RegExp(
+    `((?:\\b${currencyCodeSource}|${currencySymbolSource})\\s*)?`
+    + `(\\d+(?:[.,'\\s\\u00A0]\\d{3})*(?:[.,]\\d{1,2})?)`
+    + `(\\s*(?:\\b${currencyCodeSource}|${currencySymbolSource}))?`,
+    'g'
+);
 
 /**
  * Formats an amount rounded to cents, with the given separators
