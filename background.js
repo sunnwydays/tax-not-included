@@ -7,16 +7,30 @@ chrome.commands.onCommand.addListener(async (command) => {
     }
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
-	await chrome.storage.local.set({ 'taxOn': true });
-    await chrome.action.setBadgeBackgroundColor({ color: '#54b840' });
-    await chrome.action.setBadgeText({ text: 'ON' });
+const updateBadge = async (isOn) => {
+	await chrome.action.setBadgeBackgroundColor({ color: isOn ? '#54b840' : '#d98071' });
+    await chrome.action.setBadgeText({ text: isOn ? 'ON' : 'OFF' });
+};
+
+// Badge text isn't kept across browser restarts, so set it from storage
+const syncBadge = async () => {
+	const { taxOn } = await chrome.storage.local.get(['taxOn']);
+	await updateBadge(taxOn !== false); // taxOn true if undefined
+};
+
+// onInstalled also fires on extension and browser updates; only the first
+// install should turn tax on, so an update keeps the user's choice
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+	if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
+		await chrome.storage.local.set({ 'taxOn': true });
+	}
+	await syncBadge();
 });
+
+chrome.runtime.onStartup.addListener(syncBadge);
 
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
 	if (namespace === 'local' && changes.taxOn) {
-		const newState = changes.taxOn.newValue;
-		await chrome.action.setBadgeBackgroundColor({ color: newState ? '#54b840' : '#d98071' });
-        await chrome.action.setBadgeText({ text: newState ? 'ON' : 'OFF' });
+		await updateBadge(changes.taxOn.newValue);
 	}
 });
