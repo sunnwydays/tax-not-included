@@ -34,8 +34,121 @@ p, li, article, section
 `;
 // Text in these is code or markup, never a price (e.g. "$1" in a shell snippet)
 const nonPriceContainers = 'pre, code, kbd, samp, script, style, textarea';
+const hiddenTextContainers = 'script, style, noscript, template';
+
+// Checkout summaries list the tax and a total that already includes it, so
+// those amounts are left alone instead of being taxed a second time (#15)
+const LABEL_MAX_CHARS = 40; // longer text is a sentence, not a line label
+const ROW_MAX_CHARS = 80; // a single "label: amount" line
+const SUMMARY_MAX_CHARS = 1000; // a whole subtotal/tax/total block
+const taxWordRegex = /\b(?:tax(?:es)?|gst|hst|pst|qst|rst|vat)\b/i;
+// e.g. "Total before tax", "Taxes calculated at checkout"
+const notTaxLineRegex = /\b(?:before|excl\w*|calculated|not included|free)\b/i;
+// e.g. "Total (taxes included)", "incl. VAT", "Prices include all taxes"
+const taxIncludedRegex = /\b(?:tax(?:es)?|vat|gst|hst)\s+(?:incl(?:uded|usive|\.)?|incluses)|\bincl(?:udes?|uded|uding|\.)?\s+(?:all\s+(?:applicable\s+)?)?(?:tax(?:es)?|vat|gst|hst)\b|\bTTC\b/i;
+const totalLabelRegex = /^\W*(?:order\s+|grand\s+|estimated\s+|final\s+)?total\b/i;
+const priceInTextRegex = /[$€£]\s*\d|\b(?:USD|EUR|CAD)\s*\d|\d\s*(?:[$€£]|(?:USD|EUR|CAD)\b)/g;
+// Text that could be all or part of a price
+const pricePieceRegex = /\d|[$€£]|\b(?:USD|EUR|CAD)\b/;
 
 let currentRate = 1;
+/** @type {HTMLElement[]} Checkout summaries whose amounts already include tax */
+let taxSummaries = [];
+
+const isTaxLine = (text) => text.length <= LABEL_MAX_CHARS && taxWordRegex.test(text)
+    && !notTaxLineRegex.test(text) && !taxIncludedRegex.test(text);
+
+// "Total taxes" is a tax line, but "Total (taxes included)" is the grand total
+const isGrandTotal = (text) => text.length <= LABEL_MAX_CHARS && totalLabelRegex.test(text)
+    && (!taxWordRegex.test(text) || taxIncludedRegex.test(text));
+
+/**
+ * Collects the trimmed, non-empty visible text pieces under an element
+ * @param {HTMLElement} el
+ * @param {number} maxChars Stop once the combined length passes this
+ * @returns {?string[]} The text pieces, or null if longer than maxChars
+ */
+const visibleTexts = (el, maxChars) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, (node) =>
+        node.parentElement?.closest(hiddenTextContainers)
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT
+    );
+    const texts = [];
+    let length = 0;
+    let node;
+    while (node = walker.nextNode()) {
+        const text = node.nodeValue.trim();
+        if (!text) continue;
+        length += text.length;
+        if (length > maxChars) return null;
+        texts.push(text);
+    }
+    return texts;
+}
+
+/**
+ * Finds checkout summaries: compact blocks with a tax line, a grand total,
+ * and the amounts for them (e.g. Items / Shipping / Estimated GST / Order Total)
+ * @returns {HTMLElement[]}
+ */
+const findTaxSummaries = () => {
+    const summaries = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while (node = walker.nextNode()) {
+        if (!isTaxLine(node.nodeValue.trim())) continue;
+        if (node.parentElement?.closest(hiddenTextContainers)) continue;
+
+        // Climb until the block also holds the total and its amounts, which
+        // may sit in a sibling column rather than next to each label
+        for (let el = node.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+            const texts = visibleTexts(el, SUMMARY_MAX_CHARS);
+            if (!texts) break;
+            const prices = texts.join(' ').match(priceInTextRegex) || [];
+            if (texts.some(isGrandTotal) && prices.length >= 2) {
+                summaries.add(el);
+                break;
+            }
+        }
+    }
+    return [...summaries];
+}
+
+/**
+ * Whether a price's text node already includes tax: it is inside a checkout
+ * summary, on a grand total line of a page with one, or labelled tax-included
+ * @param {Node} node
+ * @returns {boolean}
+ */
+const isTaxIncluded = (node) => {
+    if (taxSummaries.some(summary => summary.contains(node))) return true;
+
+    for (let el = node.parentElement; el; el = el.parentElement) {
+        const texts = visibleTexts(el, ROW_MAX_CHARS);
+        if (!texts) return false;
+        // Past a second amount this is a list of rows, not this price's line
+        if ((texts.join(' ').match(priceInTextRegex) || []).length > 1) return false;
+        if (texts.some(text => taxIncludedRegex.test(text))) return true;
+        // e.g. Amazon repeats "Order Total" beside the place-order button
+        if (taxSummaries.length > 0 && texts.some(isGrandTotal)) return true;
+    }
+    return false;
+}
+
+/**
+ * Finds the page's checkout summaries again and puts back any amounts that
+ * were taxed before the site rendered the summary they belong to
+ */
+const refreshTaxSummaries = () => {
+    taxSummaries = findTaxSummaries();
+    originalValues.forEach((originalText, node) => {
+        if (!node.isConnected || !isTaxIncluded(node)) return;
+        node.nodeValue = originalText;
+        originalValues.delete(node);
+        processedTextNodes.delete(node);
+    });
+}
 
 /**
  * Returns the decimal and thousands separators for a price amount
@@ -235,11 +348,13 @@ const calculatePrice = (element, rate) => {
         delete element.dataset.originalHtml;
     }
 
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, (node) =>
-        node.parentElement?.closest(nonPriceContainers)
-            ? NodeFilter.FILTER_REJECT
-            : NodeFilter.FILTER_ACCEPT
-    );
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, (node) => {
+        if (processedTextNodes.has(node)) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement?.closest(nonPriceContainers)) return NodeFilter.FILTER_REJECT;
+        // Skip the currency symbol too, so it can't pair with a later number
+        if (pricePieceRegex.test(node.nodeValue) && isTaxIncluded(node)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+    });
     let textNode;
     let modified = false;
     const elemInitialHtml = element.innerHTML;
@@ -259,7 +374,6 @@ const calculatePrice = (element, rate) => {
     };
     
     while (textNode = walker.nextNode()) {
-        if (processedTextNodes.has(textNode)) continue;
         processedTextNodes.add(textNode);
 
         const originalText = textNode.nodeValue;
@@ -314,8 +428,9 @@ const processBatch = () => {
             return;
         }
 
-        if (observer) observer.disconnect(); 
+        if (observer) observer.disconnect();
 
+        refreshTaxSummaries();
         nodesToProcess.forEach(node => {
             calculatePrice(node);
         });
@@ -364,6 +479,7 @@ const applyRates = async () => {
     const siteDisabled = (sync.disabledSites || []).includes(location.hostname);
     const isEnabled = local.taxOn !== false && !siteDisabled; // taxOn true if undefined
     if (isEnabled) {
+        refreshTaxSummaries();
         document.querySelectorAll(tagsWithPrices).forEach(el => {
             calculatePrice(el);
         });
