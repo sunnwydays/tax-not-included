@@ -7,9 +7,10 @@ chrome.commands.onCommand.addListener(async (command) => {
     }
 });
 
-const updateBadge = async (isOn) => {
-	await chrome.action.setBadgeBackgroundColor({ color: isOn ? '#54b840' : '#d98071' });
-    await chrome.action.setBadgeText({ text: isOn ? 'ON' : 'OFF' });
+// Without a tabId this sets the badge every tab falls back to
+const updateBadge = async (isOn, tabId) => {
+	await chrome.action.setBadgeBackgroundColor({ color: isOn ? '#54b840' : '#d98071', tabId });
+    await chrome.action.setBadgeText({ text: isOn ? 'ON' : 'OFF', tabId });
 };
 
 // Badge text isn't kept across browser restarts, so set it from storage
@@ -32,5 +33,13 @@ chrome.runtime.onStartup.addListener(syncBadge);
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
 	if (namespace === 'local' && changes.taxOn) {
 		await updateBadge(changes.taxOn.newValue);
+	}
+});
+
+// Pages report whether they are changing prices, which is OFF on sites the
+// extension is disabled for even while it is on everywhere else
+chrome.runtime.onMessage.addListener((message, sender) => {
+	if (message?.type === 'pageState' && sender.tab?.id !== undefined) {
+		updateBadge(message.enabled, sender.tab.id);
 	}
 });

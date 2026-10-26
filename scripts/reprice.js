@@ -526,6 +526,17 @@ const resetPrices = () => {
 }
 
 /**
+ * Tells the service worker whether prices are being changed on this page, so
+ * the badge can show OFF on sites the extension is disabled for
+ * @param {boolean} enabled
+ */
+const reportPageState = (enabled) => {
+    try {
+        chrome.runtime?.sendMessage({ type: 'pageState', enabled })?.catch(() => {});
+    } catch { /* extension was reloaded; this page's script is orphaned */ }
+}
+
+/**
  * Change prices on the page to reflect user's rates
  */
 const applyRates = async () => {
@@ -545,6 +556,7 @@ const applyRates = async () => {
 
     const siteDisabled = (sync.disabledSites || []).includes(location.hostname);
     const isEnabled = local.taxOn !== false && !siteDisabled; // taxOn true if undefined
+    reportPageState(isEnabled);
     if (isEnabled) {
         refreshTaxSummaries();
         calculatePrice(document.body);
