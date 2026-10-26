@@ -24,8 +24,11 @@ const makeChromeStub = (syncStore = { taxRates: { Tax: 13 } }) => {
         set: (obj) => {
             const changes = {};
             for (const [k, v] of Object.entries(obj)) {
-                changes[k] = { oldValue: store[k], newValue: v };
-                store[k] = v;
+                // Copied, as chrome.storage does, so later changes to the
+                // caller's object aren't saved without another set
+                const copy = structuredClone(v);
+                changes[k] = { oldValue: store[k], newValue: copy };
+                store[k] = copy;
             }
             setTimeout(() => listeners.forEach(fn => fn(changes, areaName)), 0);
             return Promise.resolve();

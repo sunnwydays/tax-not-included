@@ -7,6 +7,37 @@ const MAX_RATES = 15;
  */
 let rates = {};
 
+/** Typed rates are saved once typing pauses this long, since each save reprices every open tab */
+const SAVE_DELAY = 300; // ms
+let saveTimeout = null;
+/** @type {Object} Items waiting to be saved to chrome.storage.sync */
+const pendingSaves = {};
+
+/**
+ * Saves any pending items to chrome.storage.sync now
+ * @returns {Promise<void>}
+ */
+const flushSaves = async () => {
+    clearTimeout(saveTimeout);
+    if (Object.keys(pendingSaves).length === 0) return;
+    const items = { ...pendingSaves };
+    Object.keys(pendingSaves).forEach(key => delete pendingSaves[key]);
+    await chrome.storage.sync.set(items);
+};
+
+/**
+ * Saves items to chrome.storage.sync once typing pauses
+ * @param {Object} items
+ */
+const saveSoon = (items) => {
+    Object.assign(pendingSaves, items);
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(flushSaves, SAVE_DELAY);
+};
+
+// The popup closes as soon as it loses focus, so save whatever is still waiting
+window.addEventListener('pagehide', flushSaves);
+
 /**
  * Returns a unique rate name by appending numbers to the provided name
  * @param {string} rateName Name of a rate
@@ -123,7 +154,7 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         input.classList.remove('border-red-500', 'text-red-600', 'bg-red-50');
         rates[parent.dataset.currentKey] = numericValue;
         updateTotalDisplay();
-        await chrome.storage.sync.set({ "taxRates": rates });
+        saveSoon({ "taxRates": rates });
     });
     
     input.addEventListener('keydown', (e) => {
@@ -137,8 +168,8 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         elem.textContent = isName ? parent.dataset.currentKey : formatPercent(rates[parent.dataset.currentKey]);
         elem.classList.remove('hidden');
         input.classList.add('hidden');
-        
-        if (!isName) return;
+
+        if (!isName) return flushSaves();
         
         let newName = e.target.value.trim();
         // A cleared name keeps the old one rather than saving a blank key
@@ -299,8 +330,9 @@ const initGroceryToggle = async (hostname) => {
         }
 
         rateInput.classList.remove('border-red-500', 'text-red-600', 'bg-red-50');
-        await chrome.storage.sync.set({ groceryTaxRate: numericValue });
+        saveSoon({ groceryTaxRate: numericValue });
     });
+    rateInput.addEventListener('blur', flushSaves);
 };
 
 /**
