@@ -135,7 +135,9 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         if (!isName) return;
         
         let newName = e.target.value.trim();
-        if (newName == parent.dataset.currentKey) return;
+        // A cleared name keeps the old one rather than saving a blank key
+        if (!newName) input.value = parent.dataset.currentKey;
+        if (!newName || newName == parent.dataset.currentKey) return;
         
         const uniqueName = getUnusedName(newName);
         elem.textContent = uniqueName;
