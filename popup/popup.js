@@ -3,7 +3,7 @@ const MIN_RATES = 1;
 const MAX_RATES = 15;
 
 /** * @type {Object.<string, number>} 
- * @description Live dictionary of tax names and their corresponding multipliers.
+ * @description Live dictionary of tax names and their rates in percent.
  */
 let rates = {};
 
@@ -38,13 +38,19 @@ const updateToggleButtonText = (isOn) => {
 };
 
 /**
- * Updates the Total Multiplier display
+ * Formats a percentage without trailing zeros, e.g. 13 -> "13%", 14.975 -> "14.975%"
+ * @param {number} percent
+ * @returns {string}
+ */
+const formatPercent = percent => `${Number(percent.toFixed(3))}%`;
+
+/**
+ * Updates the Total Tax display
  */
 const updateTotalDisplay = () => {
-    const total = getCombinedRate(rates);
     const display = document.querySelector('#total-rate');
     if (display) {
-        display.textContent = `Total Multiplier: x${total.toFixed(4)}`;
+        display.textContent = `Total tax: ${formatPercent(getTotalPercent(rates))}`;
     }
 };
 
@@ -66,7 +72,7 @@ const updateRateControls = () => {
 /**
  * Creates an entry for a new rate with a unique name
  * @param {string} rateName Name of rate
- * @param {number} rate Rate
+ * @param {number} rate Rate in percent
  */
 const addNewRate = async (rateName, rate) => {
     if (Object.keys(rates).length >= MAX_RATES) return;
@@ -76,7 +82,7 @@ const addNewRate = async (rateName, rate) => {
 
     const uniqueName = getUnusedName(rateName);
     rates[uniqueName] = rate;
-    await chrome.storage.sync.set({ "rates": rates });
+    await chrome.storage.sync.set({ "taxRates": rates });
     list.appendChild(initRateEntry(template, uniqueName, rate));
     updateRateControls();
 }
@@ -96,7 +102,7 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
     
     if (!elem || !input) return;
     
-    elem.textContent = isName ? parent.dataset.currentKey : rate;
+    elem.textContent = isName ? parent.dataset.currentKey : formatPercent(rate);
     input.value = isName ? parent.dataset.currentKey : rate;
     
     elem.addEventListener('click', () => {
@@ -117,7 +123,7 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         input.classList.remove('border-red-500', 'text-red-600', 'bg-red-50');
         rates[parent.dataset.currentKey] = numericValue;
         updateTotalDisplay();
-        await chrome.storage.sync.set({ "rates": rates });
+        await chrome.storage.sync.set({ "taxRates": rates });
     });
     
     input.addEventListener('keydown', (e) => {
@@ -128,7 +134,7 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
     });
     
     input.addEventListener('blur', async (e) => {
-        elem.textContent = isName ? parent.dataset.currentKey : rates[parent.dataset.currentKey];
+        elem.textContent = isName ? parent.dataset.currentKey : formatPercent(rates[parent.dataset.currentKey]);
         elem.classList.remove('hidden');
         input.classList.add('hidden');
         
@@ -144,10 +150,10 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         
         const savedValue = rates[parent.dataset.currentKey];
         delete rates[parent.dataset.currentKey];
-        rates[uniqueName] = savedValue ?? 1;
-        
+        rates[uniqueName] = savedValue ?? 0;
+
         parent.dataset.currentKey = uniqueName;
-        await chrome.storage.sync.set({ "rates": rates });
+        await chrome.storage.sync.set({ "taxRates": rates });
     });
 }
 
@@ -180,7 +186,7 @@ const initRateEntry = (template, rateName, rate) => {
         clone.addEventListener('transitionend', removeClone, { once: true });
         setTimeout(removeClone, 250); // fallback if transitionend never fires
 
-        await chrome.storage.sync.set({ "rates": rates });
+        await chrome.storage.sync.set({ "taxRates": rates });
     });
     
     return clone;
@@ -259,9 +265,9 @@ const initGroceryToggle = async (hostname) => {
     const rateInput = document.querySelector('#grocery-rate');
     if (!btn || !rateRow || !rateInput || !hostname) return;
 
-    const { grocerySites, groceryRate } = await chrome.storage.sync.get(['grocerySites', 'groceryRate']);
+    const { grocerySites, groceryTaxRate, groceryRate } = await chrome.storage.sync.get(['grocerySites', 'groceryTaxRate', 'groceryRate']);
     let isGrocery = (grocerySites || []).includes(hostname);
-    rateInput.value = groceryRate ?? defaultGroceryRate;
+    rateInput.value = getGroceryRateOrDefault(groceryTaxRate, groceryRate);
 
     const render = () => {
         btn.textContent = `Grocery store: ${hostname}`;
@@ -293,7 +299,7 @@ const initGroceryToggle = async (hostname) => {
         }
 
         rateInput.classList.remove('border-red-500', 'text-red-600', 'bg-red-50');
-        await chrome.storage.sync.set({ groceryRate: numericValue });
+        await chrome.storage.sync.set({ groceryTaxRate: numericValue });
     });
 };
 
@@ -302,8 +308,10 @@ const initGroceryToggle = async (hostname) => {
  * input elements, and total rate display.
  */
 const initPopup = async () => {
-    const { rates: syncedRates } = await chrome.storage.sync.get(['rates']);
-    rates = getRatesOrDefault(syncedRates);
+    // Rates saved as multipliers by older versions are shown as percentages,
+    // and saved under taxRates on the first edit
+    const { taxRates, rates: legacyRates } = await chrome.storage.sync.get(['taxRates', 'rates']);
+    rates = getRatesOrDefault(taxRates, legacyRates);
     
     const { taxOn } = await chrome.storage.local.get(['taxOn']);
     const isCurrentlyOn = (taxOn === undefined) ? true : taxOn;
@@ -330,7 +338,7 @@ const initPopup = async () => {
     document.querySelector('#rate-list').append(...rateSpans);
     
     const newRateBtn = document.querySelector('#new-rate');
-    newRateBtn.addEventListener("click", () => addNewRate('my rate', 1));
+    newRateBtn.addEventListener("click", () => addNewRate('my tax', 0));
 
     updateTotalDisplay();
     updateRateControls();

@@ -1,37 +1,67 @@
 /** * @type {Object.<string, number>}
- * @description Default tax rates used until the user saves their own.
+ * @description Default tax rates, in percent, used until the user saves their own.
  */
-const defaultRates = { 'Tax': 1.13 };
+const defaultRates = { 'Tax': 13 };
 
 /**
- * Multiplier used on sites marked as grocery stores; 1 means exempt.
+ * Tax rate in percent used on sites marked as grocery stores; 0 means exempt.
  * A number rather than a switch so reduced grocery taxes can be modelled.
  * @type {number}
  */
-const defaultGroceryRate = 1;
+const defaultGroceryRate = 0;
 
 /**
- * Returns the saved rates, or the defaults if none have been saved yet
- * @param {?Object.<string, number>} savedRates Rates from chrome.storage.sync
+ * Converts a multiplier saved by older versions (1.13) to a percentage (13)
+ * @param {number} multiplier
+ * @returns {number}
+ */
+const multiplierToPercent = multiplier => Number(((multiplier - 1) * 100).toPrecision(12));
+
+/**
+ * Returns the saved rates in percent, or the defaults if none have been saved yet.
+ * Older versions saved multipliers under "rates"; those are converted
+ * @param {?Object.<string, number>} savedRates taxRates from chrome.storage.sync
+ * @param {?Object.<string, number>} [legacyRates] rates (multipliers) from chrome.storage.sync
  * @returns {Object.<string, number>} A copy, safe to modify
  */
-const getRatesOrDefault = savedRates => {
-    const hasRates = savedRates && Object.keys(savedRates).length > 0;
-    return { ...(hasRates ? savedRates : defaultRates) };
+const getRatesOrDefault = (savedRates, legacyRates) => {
+    if (savedRates && Object.keys(savedRates).length > 0) return { ...savedRates };
+    if (legacyRates && Object.keys(legacyRates).length > 0) {
+        return Object.fromEntries(Object.entries(legacyRates)
+            .map(([name, multiplier]) => [name, multiplierToPercent(multiplier)]));
+    }
+    return { ...defaultRates };
 }
 
 /**
- * Returns the cumulative rate
- * @param {Object.<string, number>} ratesObj Object of rate names and rates
- * @returns {number} Product of all rates
+ * Returns the saved grocery rate in percent, converting an older multiplier
+ * @param {?number} savedRate groceryTaxRate from chrome.storage.sync
+ * @param {?number} [legacyRate] groceryRate (a multiplier) from chrome.storage.sync
+ * @returns {number}
  */
-const getCombinedRate = ratesObj => {
-    if (!ratesObj) return 1;
-    return Object.values(ratesObj).reduce((acc, rate) => {
-        if (!rate) return acc;
-        return acc * rate;
-    }, 1);
+const getGroceryRateOrDefault = (savedRate, legacyRate) => {
+    if (savedRate != null) return savedRate;
+    if (legacyRate != null) return multiplierToPercent(legacyRate);
+    return defaultGroceryRate;
 }
+
+/**
+ * Returns the total tax in percent. Sales taxes stack by adding up
+ * (5% GST + 7% PST is 12%), not by compounding
+ * @param {Object.<string, number>} ratesObj Object of rate names and percentages
+ * @returns {number} Sum of all rates
+ */
+const getTotalPercent = ratesObj => {
+    if (!ratesObj) return 0;
+    return Object.values(ratesObj).reduce((acc, rate) => acc + (rate || 0), 0);
+}
+
+/**
+ * Returns the multiplier prices are scaled by for a tax percentage
+ * @param {number} percent e.g. 13
+ * @returns {number} e.g. 1.13
+ */
+const percentToMultiplier = percent => 1 + (percent || 0) / 100;
 
 /**
  * Rounds to the nearest cent, with halves rounding up. Float noise is removed

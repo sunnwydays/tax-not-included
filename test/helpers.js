@@ -9,7 +9,7 @@ const repriceCode = fs.readFileSync(path.join(ROOT, 'scripts/reprice.js'), 'utf8
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Minimal chrome.storage stub with onChanged propagation
-const makeChromeStub = (syncStore = { rates: { Tax: 1.13 } }) => {
+const makeChromeStub = (syncStore = { taxRates: { Tax: 13 } }) => {
     const localStore = {};
     const listeners = [];
 

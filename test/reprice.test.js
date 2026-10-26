@@ -93,6 +93,20 @@ async function run() {
     await sleep(100);
     assertEq(fresh.window.document.querySelector('#p').textContent, '$11.30', 'default rate applied before any rates are saved');
 
+    // 9. Stacked taxes add up (5% GST + 7% PST is 12%), they don't compound to 12.35%
+    const stacked = loadPage('<!doctype html><html><body><span id="p">$10.00</span></body></html>', 'https://example.com/', {
+        taxRates: { GST: 5, PST: 7 }
+    });
+    await sleep(100);
+    assertEq(stacked.window.document.querySelector('#p').textContent, '$11.20', 'stacked rates are added');
+
+    // 10. Multipliers saved by an older version are converted to percentages
+    const legacy = loadPage('<!doctype html><html><body><span id="p">$10.00</span></body></html>', 'https://example.com/', {
+        rates: { GST: 1.05, PST: 1.07 }
+    });
+    await sleep(100);
+    assertEq(legacy.window.document.querySelector('#p').textContent, '$11.20', 'legacy multipliers read as percentages and added');
+
     console.log(failures === 0 ? 'ALL TESTS PASSED' : `${failures} FAILURE(S)`);
     process.exit(failures === 0 ? 0 : 1);
 }

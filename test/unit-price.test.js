@@ -18,7 +18,7 @@ const quantity = text => {
 };
 
 const GROCER = 'https://grocer.example/';
-const grocerStore = (extra = {}) => ({ rates: { Tax: 1.13 }, grocerySites: ['grocer.example'], ...extra });
+const grocerStore = (extra = {}) => ({ taxRates: { Tax: 13 }, grocerySites: ['grocer.example'], ...extra });
 const card = (title, price) => `<!doctype html><html><body><div class="card"><h3>${title}</h3>${price}</div></body></html>`;
 const unitSpans = page => [...page.window.document.querySelectorAll('[data-tni-unit-price]')];
 const unitText = page => unitSpans(page).map(s => s.textContent).join('|');
@@ -66,9 +66,9 @@ async function run() {
         'span sits right after the price element');
 
     // 2. With a grocery rate the unit price uses the after-tax value
-    const taxed = loadPage(card('Cheerios 435 g', '<span class="price">$5.49</span>'), GROCER, grocerStore({ groceryRate: 1.05 }));
+    const taxed = loadPage(card('Cheerios 435 g', '<span class="price">$5.49</span>'), GROCER, grocerStore({ groceryTaxRate: 5 }));
     await sleep(150);
-    assertEq(priceOf(taxed), '$5.76', 'price is taxed with groceryRate');
+    assertEq(priceOf(taxed), '$5.76', 'price is taxed with groceryTaxRate');
     assertEq(unitText(taxed), '($1.33/100 g)', 'unit price is after tax (5.49 x 1.05 / 435 x 100)');
 
     // 3. A non-grocery page gets none
@@ -122,7 +122,7 @@ async function run() {
     assertEq(unitText(multi), '($0.20/100 mL)', 'multipack quantities are multiplied');
 
     // 11. Turning the extension off removes the spans and restores the HTML
-    const syncStore = grocerStore({ groceryRate: 1.05 });
+    const syncStore = grocerStore({ groceryTaxRate: 5 });
     const live = loadPage(card('Cheerios 435 g', '<span class="price">$5.49</span>'), GROCER, syncStore);
     await sleep(150);
     assertEq(unitSpans(live).length, 1, 'unit price shown before toggling off');
@@ -136,7 +136,7 @@ async function run() {
     assertEq(unitText(live), '($1.33/100 g)', 'taxOn back on shows the unit price again');
 
     // 12. Changing the rate leaves one span with the new value
-    await live.window.chrome.storage.sync.set({ groceryRate: 1.13 });
+    await live.window.chrome.storage.sync.set({ groceryTaxRate: 13 });
     await sleep(150);
     assertEq(unitSpans(live).length, 1, 'rate change leaves a single span');
     assertEq(unitText(live), '($1.43/100 g)', 'rate change updates the unit price');
@@ -156,7 +156,7 @@ async function run() {
     assertEq(disabled.window.document.body.innerHTML, disabled.before, 'disabling the site restores the HTML exactly');
 
     // 15. Products added later (lazy-loaded grids) get unit prices
-    const lazy = loadPage('<!doctype html><html><body><div id="grid"></div></body></html>', GROCER, grocerStore({ groceryRate: 1.05 }));
+    const lazy = loadPage('<!doctype html><html><body><div id="grid"></div></body></html>', GROCER, grocerStore({ groceryTaxRate: 5 }));
     await sleep(150);
     lazy.window.document.getElementById('grid').innerHTML =
         '<div class="card"><h3>Cheerios 435 g</h3><span class="price">$5.49</span></div>';
