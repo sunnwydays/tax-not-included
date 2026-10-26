@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build:css": "tailwindcss -i popup/tailwind.css -o popup/popup.css --minify",
+    "package": "npm run build:css && tar -a -cf tax-not-included.zip --exclude=images/screenshots --exclude=*.pdn --exclude=popup/tailwind.css manifest.json background.js images popup scripts",
     "test": "node test/reprice.test.js && node test/no-modify.test.js && node test/checkout.test.js && node test/grocery.test.js && node test/unit-price.test.js && node test/popup.test.js"
   },
   "devDependencies": {
