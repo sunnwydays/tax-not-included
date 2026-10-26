@@ -61,6 +61,30 @@ const currentPriceExcluded = `${hiddenTextContainers}, s, del, strike`;
 let currentRate = 1;
 /** @type {HTMLElement[]} Checkout summaries whose amounts already include tax */
 let taxSummaries = [];
+/** @type {Set<HTMLElement>} Elements given a "Before tax" tooltip, cleared on reset */
+const titledElements = new Set();
+
+/**
+ * Shows a price's pre-tax amount when hovering it. Elements with a tooltip of
+ * the site's own are left alone
+ * @param {?HTMLElement} el
+ * @param {string} originalPrice e.g. "$10.00"
+ */
+const setBeforeTaxTitle = (el, originalPrice) => {
+    if (!el || (el.hasAttribute('title') && !titledElements.has(el))) return;
+    el.title = `Before tax: ${originalPrice.trim()}`;
+    titledElements.add(el);
+}
+
+/**
+ * Removes the tooltip setBeforeTaxTitle added, if any
+ * @param {?HTMLElement} el
+ */
+const removeBeforeTaxTitle = (el) => {
+    if (!el || !titledElements.has(el)) return;
+    el.removeAttribute('title');
+    titledElements.delete(el);
+}
 
 const isTaxLine = (text) => text.length <= LABEL_MAX_CHARS && taxWordRegex.test(text)
     && !notTaxLineRegex.test(text) && !taxIncludedRegex.test(text);
@@ -155,6 +179,7 @@ const refreshTaxSummaries = () => {
         node.nodeValue = originalText;
         originalValues.delete(node);
         processedTextNodes.delete(node);
+        removeBeforeTaxTitle(node.parentElement);
     });
 }
 
@@ -163,12 +188,14 @@ const refreshTaxSummaries = () => {
  * @param {string} text The text content to find and apply price rate
  * @param {number} activeRate
  * @param {Object} sepPrice - The global price state object (mutated in place).
- * @returns Object with the modified text and hasMatch boolean
+ * @returns Object with the modified text, hasMatch boolean, and the original
+ *   text of each price changed
  */
 const applyRateInText = (text, activeRate, sepPrice, textNode) => {
     const priceRegex = createPriceRegex();
 
     let hasMatch = false;
+    const originals = [];
 
     const newText = text.replace(priceRegex, (match, leading, amountStr, trailing) => {
         const hasCurrency = leading || trailing;
@@ -191,10 +218,12 @@ const applyRateInText = (text, activeRate, sepPrice, textNode) => {
             }
         }
         hasMatch = true;
+        // "12.99" after a "$" in its own element reads as "$12.99"
+        originals.push((hasCurrency ? '' : sepPrice.currency ?? '') + match);
         return (leading ?? '') + finalAmount + (trailing ?? '');
     });
 
-    return { newText, hasMatch };
+    return { newText, hasMatch, originals };
 }
 
 /**
@@ -208,6 +237,7 @@ const applyRateInText = (text, activeRate, sepPrice, textNode) => {
 const resetSepPrice = (obj) => {
     obj.whole = null;
     obj.fraction = null;
+    obj.currency = null;
     obj.state = PriceStates.EMPTY;
 };
 
@@ -221,6 +251,7 @@ const resetSepPrice = (obj) => {
 const processSepPrice = (text, textNode, sepPrice) => {
     if (currencyOnlyRegex.test(text)) {
         sepPrice.state = PriceStates.CURRENCY;
+        sepPrice.currency = text;
     } else {
         if (sepPrice.state == PriceStates.CURRENCY) {
             // whole is already processed in the big regex; whitespace-only
@@ -264,6 +295,12 @@ const applySepPrice = (sepPrice, activeRate) => {
     const thousandSep = sepPrice.whole?.thousandSep;
     const decimalSep = thousandSep === '.' ? ',' : '.';
     const [formattedWhole, fraction] = formatAmount(total * activeRate, thousandSep, decimalSep).split(decimalSep);
+
+    // On the element holding all the pieces, so hovering any of them shows it
+    const pieces = [sepPrice.whole?.node, sepPrice.fraction?.node].filter(Boolean);
+    let holder = pieces[0]?.parentElement;
+    while (holder && !pieces.every(piece => holder.contains(piece))) holder = holder.parentElement;
+    if (total) setBeforeTaxTitle(holder, (sepPrice.currency ?? '') + formatAmount(total, thousandSep, decimalSep));
 
     if (sepPrice.whole?.node) {
         if (!originalValues.has(sepPrice.whole.node)) {
@@ -309,6 +346,8 @@ const calculatePrice = (element, rate) => {
         whole: null,
         /** @type {?PricePart} */
         fraction: null,
+        /** @type {?string} Currency in its own text node, e.g. "$" */
+        currency: null,
         /** @type {PriceStates} */
         state: PriceStates.EMPTY,
     };
@@ -317,12 +356,13 @@ const calculatePrice = (element, rate) => {
         processedTextNodes.add(textNode);
 
         const originalText = textNode.nodeValue;
-        const { newText, hasMatch } = applyRateInText(originalText, activeRate, sepPrice, textNode);
+        const { newText, hasMatch, originals } = applyRateInText(originalText, activeRate, sepPrice, textNode);
 
         if (hasMatch) {
             // Node contains the whole price string
             if (!originalValues.has(textNode)) originalValues.set(textNode, originalText);
             textNode.nodeValue = newText;
+            setBeforeTaxTitle(textNode.parentElement, originals.join(', '));
         } else {
             // Node might contain a part of the price string, save and check neighbours
             processSepPrice(originalText, textNode, sepPrice);
@@ -480,6 +520,7 @@ const resetPrices = () => {
     originalValues.clear();
 
     document.querySelectorAll('[data-tni-unit-price]').forEach(el => el.remove());
+    titledElements.forEach(removeBeforeTaxTitle);
 
     processedTextNodes = new WeakSet();
 }

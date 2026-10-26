@@ -17,6 +17,7 @@ async function run() {
         <div id="euro-full">$1.234,56</div>
         <div id="us-thousands">$1,234</div>
         <div id="half-cent">$10.50</div>
+        <div><span id="own-title" title="Sale price">$5.00</span></div>
     </body></html>`;
 
     const { window } = loadPage(html);
@@ -41,12 +42,19 @@ async function run() {
     // (10.50 * 1.13 is 11.864999... in floating point, not 11.865)
     assertEq($('#half-cent').textContent, '$11.87', 'half cent rounds up');
 
+    // 1d. Hovering a taxed price shows what it was before tax
+    assertEq($('#price').title, 'Before tax: $10.00', 'tooltip shows the original price');
+    assertEq($('#sep').title, 'Before tax: $15.99', 'split price tooltip on the element holding every piece');
+    assertEq($('#own-title').title, 'Sale price', "site's own tooltip left alone");
+
     // 2. Toggle off restores original prices
     await chrome.storage.local.set({ taxOn: false });
     await sleep(100);
     assertEq($('#price').textContent, '$10.00', 'price restored after toggle off');
     assertEq($('#sw').textContent, '15', 'split whole restored');
     assertEq($('#sf').textContent, '99', 'split fraction restored');
+    assertEq($('#price').hasAttribute('title') || $('#sep').hasAttribute('title'), false, 'tooltips removed after toggle off');
+    assertEq($('#own-title').title, 'Sale price', "site's own tooltip kept after toggle off");
 
     // 3. Toggle on re-taxes
     await chrome.storage.local.set({ taxOn: true });
