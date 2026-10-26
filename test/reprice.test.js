@@ -1,52 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const { JSDOM } = require('jsdom');
-
-const ROOT = path.join(__dirname, '..');
-const utilsCode = fs.readFileSync(path.join(ROOT, 'scripts/utils.js'), 'utf8');
-const repriceCode = fs.readFileSync(path.join(ROOT, 'scripts/reprice.js'), 'utf8');
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const { sleep, loadPage } = require('./helpers');
 
 let failures = 0;
 const assertEq = (actual, expected, label) => {
     const ok = actual === expected;
     if (!ok) failures++;
     console.log(`${ok ? 'PASS' : 'FAIL'} ${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-};
-
-// Minimal chrome.storage stub with onChanged propagation
-const makeChromeStub = () => {
-    const localStore = {};
-    const syncStore = { rates: { Tax: 1.13 } };
-    const listeners = [];
-
-    const pick = (store, keys) => {
-        const out = {};
-        (Array.isArray(keys) ? keys : [keys]).forEach(k => { if (k in store) out[k] = store[k]; });
-        return out;
-    };
-
-    const makeArea = (store, areaName) => ({
-        get: (keys) => Promise.resolve(pick(store, keys)),
-        set: (obj) => {
-            const changes = {};
-            for (const [k, v] of Object.entries(obj)) {
-                changes[k] = { oldValue: store[k], newValue: v };
-                store[k] = v;
-            }
-            setTimeout(() => listeners.forEach(fn => fn(changes, areaName)), 0);
-            return Promise.resolve();
-        }
-    });
-
-    return {
-        storage: {
-            local: makeArea(localStore, 'local'),
-            sync: makeArea(syncStore, 'sync'),
-            onChanged: { addListener: fn => listeners.push(fn) }
-        }
-    };
 };
 
 async function run() {
@@ -60,13 +18,8 @@ async function run() {
         <div id="us-thousands">$1,234</div>
     </body></html>`;
 
-    const dom = new JSDOM(html, { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
-    const { window } = dom;
-    window.chrome = makeChromeStub();
+    const { window } = loadPage(html);
     const chrome = window.chrome;
-
-    // Load both scripts into the page window (same as the browser does via manifest content_scripts)
-    window.eval(utilsCode + '\n' + repriceCode);
     await sleep(100); // applyRates is async; let it settle
 
     const $ = sel => window.document.querySelector(sel);
