@@ -310,7 +310,7 @@ const initGroceryToggle = async (hostname) => {
     const render = () => {
         btn.textContent = `Grocery store: ${hostname}`;
         // Filled while this site is marked as a grocery store
-        btn.classList.toggle('bg-[#81986e]', isGrocery);
+        btn.classList.toggle('bg-brand-sage', isGrocery);
         btn.classList.toggle('text-white', isGrocery);
         btn.setAttribute('aria-pressed', String(isGrocery));
         rateRow.classList.toggle('hidden', !isGrocery);

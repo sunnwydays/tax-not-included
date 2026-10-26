@@ -4,14 +4,11 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="/scripts/tailwind.js"></script>
     <!-- utils must appear before popup -->
     <script src="/scripts/utils.js"></script>
     <script src="popup.js"></script>
+    <!-- Built from tailwind.css by npm run build:css -->
     <link rel="stylesheet" href="popup.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lusitana:wght@400;700&family=Playwrite+IT+Moderna:wght@100..400&family=Playwrite+MX:wght@100..400&family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
 </head>
 <body class="m-0 text-center min-w-3xs">
     <template id="rate-template">
@@ -38,24 +35,24 @@
 
                 <button type="button" aria-label="Remove tax" class="
                     cursor-pointer text-xs remove-rate size-6 m-0
-                    bg-[#b03030] hover:bg-[#4a0404] transition-all rounded-md
+                    bg-brand-red hover:bg-brand-dark-red transition-all rounded-md
                     flex justify-center items-center
-                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#b03030]
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-red
                 ">🗑️</button>
             </div>
 
         </li>
     </template>
     
-    <h1 class="text-xl m-0 p-4 bg-[#517a5e] text-white shadow-sm">
+    <h1 class="text-xl m-0 p-4 bg-brand-forest text-white shadow-sm">
         Tax Not Included
     </h1>
     <button
         id="toggle-tax"
         class="
             text-l px-4 py-2 m-4 cursor-pointer shadow-sm
-            border-[#81986e] border-solid border-3 rounded-md
-            hover:bg-[#81986e] hover:text-white transition-all
+            border-brand-sage border-solid border-3 rounded-md
+            hover:bg-brand-sage hover:text-white transition-all
         "
     ></button>
     <p class="text-xs text-gray-500 mt-0 mb-3">
@@ -70,16 +67,16 @@
         id="toggle-site"
         class="
             hidden text-sm px-3 py-1 mx-4 mb-3 cursor-pointer shadow-sm
-            border-[#b03030] border-solid border-2 rounded-md
-            hover:bg-[#b03030] hover:text-white transition-all
+            border-brand-red border-solid border-2 rounded-md
+            hover:bg-brand-red hover:text-white transition-all
         "
     ></button>
     <button
         id="toggle-grocery"
         class="
             hidden mx-auto text-sm px-3 py-1 mb-3 cursor-pointer shadow-sm
-            border-[#81986e] border-solid border-2 rounded-md
-            hover:bg-[#81986e] hover:text-white transition-all
+            border-brand-sage border-solid border-2 rounded-md
+            hover:bg-brand-sage hover:text-white transition-all
         "
     ></button>
     <form id="rate-form">
@@ -105,7 +102,7 @@
     >
         <option value="">Load a preset…</option>
     </select>
-    <hr class="font-bold text-[#517a5e] w-52 mx-auto border-1 rounded-md">
+    <hr class="font-bold text-brand-forest w-52 mx-auto border-1 rounded-md">
     <p id="total-rate" class="font-bold m-3"></p>
     <!-- Only shown on sites marked as grocery stores -->
     <div id="grocery-rate-row" class="hidden mb-3">

@@ -1,0 +1,26 @@
+/* Source for popup.css. Rebuild with `npm run build:css` after changing classes */
+@import "tailwindcss" source(none);
+@source "./popup.html";
+@source "./popup.js";
+
+@theme {
+    --color-brand-dark-red: #4a0404;
+    --color-brand-red: #b03030;
+    --color-brand-cream: #ede1af;
+    --color-brand-sage: #81986e;
+    --color-brand-forest: #517a5e;
+}
+
+/* Bundled so the popup needs no network; latin subset, variable weight */
+@font-face {
+    font-family: "Zalando Sans Expanded";
+    font-style: normal;
+    font-weight: 200 900;
+    font-display: swap;
+    src: url("fonts/zalando-sans-expanded-latin.woff2") format("woff2");
+}
+
+body {
+    font-family: "Zalando Sans Expanded", sans-serif;
+    font-optical-sizing: auto;
+}
