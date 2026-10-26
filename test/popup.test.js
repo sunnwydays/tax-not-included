@@ -69,7 +69,17 @@ async function run() {
     assertEq($('#total-rate').textContent, 'Total tax: 14.975%', 'total follows the preset');
     assertEq(preset.value, '', 'picker resets to its placeholder');
 
-    // 5. Multipliers saved by an older version are shown as percentages
+    // 5. Rates can be edited from the keyboard
+    const rateSpan = $$('#rate-list .rate')[0];
+    const rateInput = $$('#rate-list .rate-input')[0];
+    assertEq(rateSpan.tabIndex, 0, 'rate is reachable with Tab');
+    rateSpan.dispatchEvent(new popup.KeyboardEvent('keydown', { key: 'Enter' }));
+    assertEq(popup.document.activeElement, rateInput, 'Enter opens the rate for editing');
+    rateInput.dispatchEvent(new popup.KeyboardEvent('keydown', { key: 'Enter' }));
+    assertEq(popup.document.activeElement, rateSpan, 'Enter again closes it and returns focus');
+    assertEq($('.remove-rate').getAttribute('aria-label'), 'Remove tax', 'remove button is labelled');
+
+    // 6. Multipliers saved by an older version are shown as percentages
     const legacy = await openPopup({ rates: { HST: 1.13 } });
     assertEq(legacy.document.querySelector('#rate-list .rate').textContent, '13%', 'legacy multiplier shown as a percentage');
 

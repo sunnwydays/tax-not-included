@@ -141,6 +141,12 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         input.classList.remove('hidden');
         input.focus();
     });
+    // The span acts as a button, so Enter and Space open it from the keyboard
+    elem.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        elem.click();
+    });
     
     input.addEventListener('input', async (e) => {
         if (isName) return;
@@ -161,6 +167,7 @@ const initEditableElement = (parent, className, rateName, rate, isName) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             input.blur();
+            elem.focus(); // back on the span, so keyboard users keep their place
         }
     });
     
