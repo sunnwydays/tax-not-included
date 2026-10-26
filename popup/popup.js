@@ -336,6 +336,55 @@ const initGroceryToggle = async (hostname) => {
 };
 
 /**
+ * Common sales tax setups (as of 2026). US presets are state rates only,
+ * since county and city taxes vary
+ * @type {Object.<string, Object.<string, number>>}
+ */
+const ratePresets = {
+    'Ontario': { HST: 13 },
+    'British Columbia': { GST: 5, PST: 7 },
+    'Quebec': { GST: 5, QST: 9.975 },
+    'Manitoba': { GST: 5, RST: 7 },
+    'Saskatchewan': { GST: 5, PST: 6 },
+    'Nova Scotia': { HST: 14 },
+    'New Brunswick, NL, PEI': { HST: 15 },
+    'Alberta and territories': { GST: 5 },
+    'New York City': { State: 4, City: 4.5, MCTD: 0.375 },
+    'California (state)': { 'Sales tax': 7.25 },
+    'Texas (state)': { 'Sales tax': 6.25 },
+    'Florida (state)': { 'Sales tax': 6 },
+};
+
+/**
+ * Shows the rate list from scratch, with the total and add/remove limits
+ */
+const renderRates = () => {
+    const template = document.getElementById('rate-template');
+    const rateSpans = Object.entries(rates).map(([rateName, rate]) => initRateEntry(template, rateName, rate));
+    document.querySelector('#rate-list').replaceChildren(...rateSpans);
+    updateTotalDisplay();
+    updateRateControls();
+};
+
+/**
+ * Fills the preset picker; choosing a preset replaces the current rates
+ */
+const initPresets = () => {
+    const select = document.querySelector('#preset');
+    if (!select) return;
+
+    select.append(...Object.keys(ratePresets).map(name => new Option(name, name)));
+    select.addEventListener('change', async () => {
+        const preset = ratePresets[select.value];
+        if (!preset) return;
+        rates = { ...preset };
+        select.value = '';
+        renderRates();
+        await chrome.storage.sync.set({ "taxRates": rates });
+    });
+};
+
+/**
  * Displays the popup with the existing rates (or default rates), tax toggle,
  * input elements, and total rate display.
  */
@@ -362,18 +411,12 @@ const initPopup = async () => {
         }
     });
     
-    const template = document.getElementById('rate-template');
-    const rateSpans = [];
-    for (const [rateName, rate] of Object.entries(rates)) {
-        rateSpans.push(initRateEntry(template, rateName, rate));
-    }
-    document.querySelector('#rate-list').append(...rateSpans);
-    
+    renderRates();
+
     const newRateBtn = document.querySelector('#new-rate');
     newRateBtn.addEventListener("click", () => addNewRate('my tax', 0));
 
-    updateTotalDisplay();
-    updateRateControls();
+    initPresets();
     initShortcutEditor();
     const hostname = await getActiveHostname();
     initSiteToggle(hostname);

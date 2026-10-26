@@ -59,7 +59,17 @@ async function run() {
     await sleep(10);
     assertEq(syncStore.taxRates.PST, 8, 'saved on blur without waiting');
 
-    // 4. Multipliers saved by an older version are shown as percentages
+    // 4. Choosing a preset replaces the rates and saves them
+    const preset = $('#preset');
+    preset.value = 'Quebec';
+    preset.dispatchEvent(new popup.Event('change'));
+    await sleep(10);
+    assertEq(JSON.stringify(syncStore.taxRates), '{"GST":5,"QST":9.975}', 'preset saved');
+    assertEq($$('#rate-list .rate-name').map(el => el.textContent).join(' '), 'GST QST', 'preset rates listed');
+    assertEq($('#total-rate').textContent, 'Total tax: 14.975%', 'total follows the preset');
+    assertEq(preset.value, '', 'picker resets to its placeholder');
+
+    // 5. Multipliers saved by an older version are shown as percentages
     const legacy = await openPopup({ rates: { HST: 1.13 } });
     assertEq(legacy.document.querySelector('#rate-list .rate').textContent, '13%', 'legacy multiplier shown as a percentage');
 
