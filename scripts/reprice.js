@@ -469,11 +469,15 @@ const resetPrices = () => {
 const applyRates = async () => {
     const [local, sync] = await Promise.all([
         chrome.storage.local.get(['taxOn']),
-        chrome.storage.sync.get(['rates', 'disabledSites'])
+        chrome.storage.sync.get(['rates', 'disabledSites', 'grocerySites', 'groceryRate'])
     ]);
 
-    // Before the popup ever saves, show the same default rate it displays
-    currentRate = getCombinedRate(getRatesOrDefault(sync.rates));
+    // Before the popup ever saves, show the same default rate it displays.
+    // Grocery sites use their own rate; calculatePrice leaves a rate of 1 alone
+    const isGrocerySite = (sync.grocerySites || []).includes(location.hostname);
+    currentRate = isGrocerySite
+        ? (sync.groceryRate ?? defaultGroceryRate)
+        : getCombinedRate(getRatesOrDefault(sync.rates));
 
     resetPrices(); // avoid double calculations
 
@@ -553,11 +557,12 @@ const initializeObservers = () => {
 
     startObserving();
 
-    // Detect and apply changes to rates, the tax toggle, or disabled sites.
-    // applyRates resets first and only recalculates when enabled here, so it
-    // covers both directions
+    // Detect and apply changes to rates, the tax toggle, disabled sites, or
+    // grocery sites and their rate. applyRates resets first and only
+    // recalculates when enabled here, so it covers both directions
     chrome.storage.onChanged.addListener(async (changes) => {
-        if (changes.taxOn || changes.rates || changes.disabledSites) {
+        if (changes.taxOn || changes.rates || changes.disabledSites
+            || changes.grocerySites || changes.groceryRate) {
             await applyRates();
         }
     });

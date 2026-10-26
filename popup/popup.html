@@ -74,6 +74,14 @@
             hover:bg-[#b03030] hover:text-white transition-all
         "
     ></button>
+    <button
+        id="toggle-grocery"
+        class="
+            hidden mx-auto text-sm px-3 py-1 mb-3 cursor-pointer shadow-sm
+            border-[#81986e] border-solid border-2 rounded-md
+            hover:bg-[#81986e] hover:text-white transition-all
+        "
+    ></button>
     <form id="rate-form">
         <ul id="rate-list" class="space-y-2">
             <!-- input boxes go here -->
@@ -89,6 +97,20 @@
     >+ Add multiplier</button>
     <hr class="font-bold text-[#517a5e] w-52 mx-auto border-1 rounded-md">
     <p id="total-rate" class="font-bold m-3"></p>
+    <!-- Only shown on sites marked as grocery stores -->
+    <div id="grocery-rate-row" class="hidden mb-3">
+        <label class="inline-flex items-center gap-2 text-sm">
+            Grocery rate
+            <input
+                id="grocery-rate"
+                type="number" step="0.001" min="0"
+                class="
+                    invalid:border-pink-500 invalid:text-pink-600
+                    max-w-16 p-1
+                "
+            >
+        </label>
+    </div>
     <a
         href="https://github.com/sunnwydays/tax-not-included/issues/new"
         target="_blank" rel="noopener"

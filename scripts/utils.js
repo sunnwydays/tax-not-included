@@ -4,6 +4,13 @@
 const defaultRates = { 'Tax': 1.13 };
 
 /**
+ * Multiplier used on sites marked as grocery stores; 1 means exempt.
+ * A number rather than a switch so reduced grocery taxes can be modelled.
+ * @type {number}
+ */
+const defaultGroceryRate = 1;
+
+/**
  * Returns the saved rates, or the defaults if none have been saved yet
  * @param {?Object.<string, number>} savedRates Rates from chrome.storage.sync
  * @returns {Object.<string, number>} A copy, safe to modify

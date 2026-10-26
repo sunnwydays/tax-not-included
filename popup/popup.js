@@ -205,20 +205,25 @@ const initShortcutEditor = async () => {
 };
 
 /**
+ * Returns the hostname of the active tab
+ * @returns {Promise<?string>} Null on pages without a regular hostname (chrome://, about:, files)
+ */
+const getActiveHostname = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    try {
+        const url = new URL(tab?.url || '');
+        if (['http:', 'https:'].includes(url.protocol)) return url.hostname;
+    } catch { /* not a URL */ }
+    return null;
+};
+
+/**
  * Shows a button to disable or enable the extension on the current site.
  * Stays hidden on pages without a regular hostname (chrome://, about:, files)
  */
-const initSiteToggle = async () => {
+const initSiteToggle = async (hostname) => {
     const btn = document.querySelector('#toggle-site');
-    if (!btn) return;
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    let hostname = null;
-    try {
-        const url = new URL(tab?.url || '');
-        if (['http:', 'https:'].includes(url.protocol)) hostname = url.hostname;
-    } catch { /* leave the button hidden */ }
-    if (!hostname) return;
+    if (!btn || !hostname) return;
 
     const { disabledSites } = await chrome.storage.sync.get(['disabledSites']);
     let isDisabled = (disabledSites || []).includes(hostname);
@@ -238,6 +243,57 @@ const initSiteToggle = async () => {
         isDisabled = !isDisabled;
         render();
         await chrome.storage.sync.set({ disabledSites: next });
+    });
+};
+
+/**
+ * Shows a button to mark the current site as a grocery store, which prices it
+ * with the grocery rate instead of the combined rate. The grocery rate input
+ * is only shown while the site is marked. Stays hidden on pages without a
+ * regular hostname
+ * @param {?string} hostname
+ */
+const initGroceryToggle = async (hostname) => {
+    const btn = document.querySelector('#toggle-grocery');
+    const rateRow = document.querySelector('#grocery-rate-row');
+    const rateInput = document.querySelector('#grocery-rate');
+    if (!btn || !rateRow || !rateInput || !hostname) return;
+
+    const { grocerySites, groceryRate } = await chrome.storage.sync.get(['grocerySites', 'groceryRate']);
+    let isGrocery = (grocerySites || []).includes(hostname);
+    rateInput.value = groceryRate ?? defaultGroceryRate;
+
+    const render = () => {
+        btn.textContent = `Grocery store: ${hostname}`;
+        // Filled while this site is marked as a grocery store
+        btn.classList.toggle('bg-[#81986e]', isGrocery);
+        btn.classList.toggle('text-white', isGrocery);
+        btn.setAttribute('aria-pressed', String(isGrocery));
+        rateRow.classList.toggle('hidden', !isGrocery);
+    };
+    render();
+    btn.classList.remove('hidden');
+
+    btn.addEventListener('click', async () => {
+        const { grocerySites: current } = await chrome.storage.sync.get(['grocerySites']);
+        const sites = current || [];
+        const next = isGrocery
+            ? sites.filter(host => host !== hostname)
+            : [...sites, hostname];
+        isGrocery = !isGrocery;
+        render();
+        await chrome.storage.sync.set({ grocerySites: next });
+    });
+
+    rateInput.addEventListener('input', async () => {
+        const numericValue = parseFloat(rateInput.value);
+        if (isNaN(numericValue) || numericValue < 0) {
+            rateInput.classList.add('border-red-500', 'text-red-600', 'bg-red-50');
+            return;
+        }
+
+        rateInput.classList.remove('border-red-500', 'text-red-600', 'bg-red-50');
+        await chrome.storage.sync.set({ groceryRate: numericValue });
     });
 };
 
@@ -279,7 +335,9 @@ const initPopup = async () => {
     updateTotalDisplay();
     updateRateControls();
     initShortcutEditor();
-    initSiteToggle();
+    const hostname = await getActiveHostname();
+    initSiteToggle(hostname);
+    initGroceryToggle(hostname);
 }
 
 initPopup();
