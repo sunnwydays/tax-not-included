@@ -33,8 +33,9 @@ span:not(script span, style span), div:not(nav div),
 p, li, article, section
 `;
 // Text in these is code or markup, never a price (e.g. "$1" in a shell snippet)
-const nonPriceContainers = 'pre, code, kbd, samp, script, style, textarea';
-const hiddenTextContainers = 'script, style, noscript, template';
+// The unit price spans we insert hold a "$" too, so they are skipped like these
+const nonPriceContainers = 'pre, code, kbd, samp, script, style, textarea, [data-tni-unit-price]';
+const hiddenTextContainers = 'script, style, noscript, template, [data-tni-unit-price]';
 
 // Checkout summaries list the tax and a total that already includes it, so
 // those amounts are left alone instead of being taxed a second time (#15)
@@ -51,6 +52,11 @@ const priceInTextRegex = /[$€£]\s*\d|\b(?:USD|EUR|CAD)\s*\d|\d\s*(?:[$€£]|
 // Text that could be all or part of a price
 const pricePieceRegex = /\d|[$€£]|\b(?:USD|EUR|CAD)\b/;
 
+// Unit prices (#14) go on products whose title gives a quantity
+const CARD_MAX_CHARS = 300; // longer text is more than one product
+// Sale "was" prices are struck through; only the current price counts
+const currentPriceExcluded = `${hiddenTextContainers}, s, del, strike`;
+
 let currentRate = 1;
 /** @type {HTMLElement[]} Checkout summaries whose amounts already include tax */
 let taxSummaries = [];
@@ -66,11 +72,12 @@ const isGrandTotal = (text) => text.length <= LABEL_MAX_CHARS && totalLabelRegex
  * Collects the trimmed, non-empty visible text pieces under an element
  * @param {HTMLElement} el
  * @param {number} maxChars Stop once the combined length passes this
+ * @param {string} [excluded] Selector for containers whose text is left out
  * @returns {?string[]} The text pieces, or null if longer than maxChars
  */
-const visibleTexts = (el, maxChars) => {
+const visibleTexts = (el, maxChars, excluded = hiddenTextContainers) => {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, (node) =>
-        node.parentElement?.closest(hiddenTextContainers)
+        node.parentElement?.closest(excluded)
             ? NodeFilter.FILTER_REJECT
             : NodeFilter.FILTER_ACCEPT
     );
@@ -151,26 +158,6 @@ const refreshTaxSummaries = () => {
 }
 
 /**
- * Returns the decimal and thousands separators for a price amount
- * @param {string} amountStr Price as a string without leading or trailing symbol
- * @returns Symbol for decimal separator (or null) and for thousands separator (or null) as array
- */
-const getAmountSeps = (amountStr) => {
-    const possibleDecimalSeps = ['.', ','];
-    const allSeps = amountStr.match(/[.,'\s\u00A0]/g) || [];
-
-    let decimalSep = null;
-    const charAt_2 = amountStr.at(-2);
-    const charAt_3 = amountStr.at(-3);
-    if (possibleDecimalSeps.includes(charAt_2)) decimalSep = charAt_2;
-    else if (possibleDecimalSeps.includes(charAt_3)) decimalSep = charAt_3;
-
-    const thousandSep = allSeps.find((s) => { return s !== decimalSep; }) || null;
-
-    return [decimalSep, thousandSep];
-}
-
-/**
  * Split a number into its whole and fraction components
  * @param {number} amount Number to be split
  * @param {number} activeRate
@@ -182,25 +169,6 @@ const splitCalculateNumber = (amount, activeRate) => {
 }
 
 /**
- * Parses an amount string into a float
- * @param {string} amountStr Price as a string without leading or trailing symbol
- * @param {string} decimalSep Symbol for decimal separator
- * @param {string} thousandSep Symbol for thousands separator
- * @returns Float of the amount, or null if unable to be parsed
- */
-const amountStrToFloat = (amountStr, decimalSep, thousandSep) => {
-    let normalized = amountStr.replace(/[ '\u00A0]/g, '');
-    // Strip the thousands separator wherever it lands (e.g. "1.234" meaning
-    // 1234), since without this a lone "." grouping with no decimal part
-    // (common outside the US) is left in place and misread as a decimal point
-    if (thousandSep) normalized = normalized.split(thousandSep).join('');
-    if (decimalSep === ',') normalized = normalized.replace(',', '.');
-
-    const parsed = parseFloat(normalized);
-    return isNaN(parsed) ? null : parsed;
-}
-
-/**
  * Parse currency, thousands separator, and decimal separator in various formats
  * @param {string} text The text content to find and apply price rate
  * @param {number} activeRate
@@ -208,7 +176,7 @@ const amountStrToFloat = (amountStr, decimalSep, thousandSep) => {
  * @returns Object with the modified text and hasMatch boolean
  */
 const applyRateInText = (text, activeRate, sepPrice, textNode) => {
-    const priceRegex = /((?:\b(?:USD|EUR|CAD)|[$€£])\s*)?(\d+(?:[.,'\s\u00A0]\d{3})*(?:[.,]\d{1,2})?)(\s*(?:\b(?:USD|EUR|CAD)|[$€£]))?/g;
+    const priceRegex = createPriceRegex();
 
     let hasMatch = false;
 
@@ -403,7 +371,96 @@ const calculatePrice = (element, rate) => {
     if (modified) element.dataset.originalHtml = elemInitialHtml;
 }
 
-let observer = null; 
+/**
+ * Finds the product card a price belongs to: the first ancestor whose text
+ * gives a quantity, as long as it still holds just that one current price
+ * @param {Node} node The text node holding the price
+ * @returns {?{card: HTMLElement, text: string}} null if there is no such card
+ */
+const findProductCard = (node) => {
+    for (let el = node.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+        const texts = visibleTexts(el, CARD_MAX_CHARS, currentPriceExcluded);
+        if (!texts) return null;
+        const text = texts.join(' ');
+        if ((text.match(priceInTextRegex) || []).length > 1) return null;
+        if (parseQuantity(text)) return { card: el, text };
+    }
+    return null;
+}
+
+/**
+ * The next piece of visible text after a node, in document order
+ * @param {Node} node
+ * @returns {?string}
+ */
+const nextVisibleText = (node) => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    walker.currentNode = node;
+    let next;
+    while (next = walker.nextNode()) {
+        const text = next.nodeValue.trim();
+        if (text && !next.parentElement?.closest(hiddenTextContainers)) return text;
+    }
+    return null;
+}
+
+/**
+ * Adds the after-tax unit price after a price whose product gives a quantity.
+ * Prices split across elements ("$" "3" <sup>97</sup>) are skipped on purpose,
+ * since the price is not in one piece of text to read
+ * @param {Node} node A text node
+ */
+const addUnitPrice = (node) => {
+    // calculatePrice has already changed the text, so taxed prices are read
+    // from their original text. One it never reached has no original, and
+    // would be untaxed; show nothing rather than that
+    const source = currentRate === 1 ? node.nodeValue : originalValues.get(node);
+    const price = source && parsePriceText(source);
+    if (!price) return;
+    price.value *= currentRate;
+    // "$3" with the cents in the next element
+    if (price.decimalSep === null && /^\d{2}$/.test(nextVisibleText(node))) return;
+
+    const found = findProductCard(node);
+    if (!found) return;
+    // Rebuild the card's span, since the site may have changed the price
+    found.card.querySelectorAll('[data-tni-unit-price]').forEach(span => span.remove());
+    if (hasUnitPrice(found.text)) return;
+
+    const span = document.createElement('span');
+    span.dataset.tniUnitPrice = '';
+    span.style.marginLeft = '0.3em';
+    span.textContent = `(${formatUnitPrice(price, parseQuantity(found.text))})`;
+
+    // Past the price's inline wrapper (e.g. a styled <span>), not inside it
+    const parent = node.parentElement;
+    const display = getComputedStyle(parent).display; // blank in jsdom for default inline tags
+    const inline = parent !== found.card && (!display || display.startsWith('inline'));
+    (inline ? parent : node).after(span);
+}
+
+/**
+ * Adds unit prices to the products under an element. Runs apart from
+ * calculatePrice, which leaves grocery-exempt pages (rate 1) alone
+ * @param {Node} root
+ */
+const addUnitPrices = (root) => {
+    if (!root.isConnected) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, (node) =>
+        node.parentElement?.closest(`${currentPriceExcluded}, ${nonPriceContainers}`)
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT
+    );
+    // Collected first, as adding a span changes the DOM being walked
+    const nodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+        if (pricePieceRegex.test(node.nodeValue)) nodes.push(node);
+    }
+    nodes.forEach(addUnitPrice);
+}
+
+let observer = null;
 
 const startObserving = () => {
     if (!observer) return;
@@ -420,7 +477,7 @@ const startObserving = () => {
 const processBatch = () => {
     Promise.all([
         chrome.storage.local.get(['taxOn']),
-        chrome.storage.sync.get(['disabledSites'])
+        chrome.storage.sync.get(['disabledSites', 'grocerySites'])
     ]).then(([local, sync]) => {
         const siteDisabled = (sync.disabledSites || []).includes(location.hostname);
         if (local.taxOn === false || siteDisabled || nodesToProcess.size === 0) {
@@ -431,8 +488,10 @@ const processBatch = () => {
         if (observer) observer.disconnect();
 
         refreshTaxSummaries();
+        const isGrocerySite = (sync.grocerySites || []).includes(location.hostname);
         nodesToProcess.forEach(node => {
             calculatePrice(node);
+            if (isGrocerySite) addUnitPrices(node);
         });
         
         nodesToProcess.clear();
@@ -456,6 +515,7 @@ const resetPrices = () => {
     });
     originalValues.clear();
 
+    document.querySelectorAll('[data-tni-unit-price]').forEach(el => el.remove());
     document.querySelectorAll('[data-original-html]').forEach(el => {
         delete el.dataset.originalHtml;
     });
@@ -488,6 +548,7 @@ const applyRates = async () => {
         document.querySelectorAll(tagsWithPrices).forEach(el => {
             calculatePrice(el);
         });
+        if (isGrocerySite) addUnitPrices(document.body);
         // resetPrices disconnected the observer; reconnect so dynamically
         // added prices (SPAs, lazy loading) keep being processed
         startObserving();

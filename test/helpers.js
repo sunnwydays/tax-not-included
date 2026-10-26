@@ -53,4 +53,4 @@ const loadPage = (html, url = 'https://example.com/', syncStore) => {
     return { window, before };
 };
 
-module.exports = { sleep, makeChromeStub, loadPage };
+module.exports = { sleep, makeChromeStub, loadPage, utilsCode };
