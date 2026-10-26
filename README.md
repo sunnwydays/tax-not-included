@@ -1,4 +1,6 @@
 # tax-not-included
+![Tax Not Included](store-assets/promo-marquee-1400x560.png)
+
 Tax Not Included is a chromium-based extension that automatically replaces instances of prices with post-tax calculation.
 
 ## Install
@@ -18,6 +20,9 @@ Tax Not Included is a chromium-based extension that automatically replaces insta
 |:-:|:-:|
 | ![Product page before](images/screenshots/before.png)<br>Product page with the site's original prices | ![Product page after](images/screenshots/after.png)<br>The same page with tax included |
 | ![Popup with tax rates](images/screenshots/popup.png)<br>Popup for editing tax rates, turning the extension off for a site, or marking it as a grocery store | ![Checkout left untouched](images/screenshots/checkout.png)<br>Checkout totals that already include tax are left alone |
+
+## Privacy
+Nothing is collected or sent anywhere. See [PRIVACY.md](PRIVACY.md).
 
 ## Challenges
 
@@ -51,3 +56,5 @@ Rates sync across devices with `chrome.storage.sync`, and the on/off state lives
 ## Development
 - `npm test` runs the jsdom test suites.
 - The popup's styles are precompiled. After changing Tailwind classes in `popup/popup.html` or `popup/popup.js`, run `npm run build:css` and commit the updated `popup/popup.css`.
+- `npm run package` builds `tax-not-included.zip` for the Chrome Web Store (only the files the extension needs, no screenshots or source art).
+- `tools/store-assets.ps1` rebuilds the store screenshots and promo tiles in `store-assets/` from `images/screenshots`. It's kept out of `scripts/` because that folder ships with the extension.
