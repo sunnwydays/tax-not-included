@@ -280,8 +280,8 @@ const applySepPrice = (sepPrice, activeRate) => {
 }
 
 /**
- * Calculates and updates the price display on page for a DOM element and its
- * children (only including children tagsWithPrices)
+ * Calculates and updates the prices in a DOM element and its children. Text
+ * nodes already done are skipped, so calling this again only does new ones
  * @param {HTMLElement} element
  * @param {number} rate
  * @returns
@@ -289,13 +289,6 @@ const applySepPrice = (sepPrice, activeRate) => {
 const calculatePrice = (element, rate) => {
     const activeRate = rate || currentRate;
     if (!activeRate || activeRate === 1 || !element) return;
-    if (element.closest('[data-original-html]')) return;
-
-    // If the site changed the HTML (e.g., color swap), we should strip our marker and re-process.
-    if (element.dataset.originalHtml) {
-        if (element.innerHTML.includes(element.dataset.originalHtml)) return;
-        delete element.dataset.originalHtml;
-    }
 
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, (node) => {
         if (processedTextNodes.has(node)) return NodeFilter.FILTER_REJECT;
@@ -305,8 +298,6 @@ const calculatePrice = (element, rate) => {
         return NodeFilter.FILTER_ACCEPT;
     });
     let textNode;
-    let modified = false;
-    const elemInitialHtml = element.innerHTML;
 
     /**
      * Tracks price data spanning multiple text nodes. Starts EMPTY so bare
@@ -332,7 +323,6 @@ const calculatePrice = (element, rate) => {
             // Node contains the whole price string
             if (!originalValues.has(textNode)) originalValues.set(textNode, originalText);
             textNode.nodeValue = newText;
-            modified = true;
         } else {
             // Node might contain a part of the price string, save and check neighbours
             processSepPrice(originalText, textNode, sepPrice);
@@ -341,11 +331,8 @@ const calculatePrice = (element, rate) => {
         if (sepPrice.state >= PriceStates.COMPLETE) {
             applySepPrice(sepPrice, activeRate);
             resetSepPrice(sepPrice);
-            modified = true;
         }
     }
-
-    if (modified) element.dataset.originalHtml = elemInitialHtml;
 }
 
 /**
@@ -493,9 +480,6 @@ const resetPrices = () => {
     originalValues.clear();
 
     document.querySelectorAll('[data-tni-unit-price]').forEach(el => el.remove());
-    document.querySelectorAll('[data-original-html]').forEach(el => {
-        delete el.dataset.originalHtml;
-    });
 
     processedTextNodes = new WeakSet();
 }
@@ -522,9 +506,7 @@ const applyRates = async () => {
     const isEnabled = local.taxOn !== false && !siteDisabled; // taxOn true if undefined
     if (isEnabled) {
         refreshTaxSummaries();
-        document.querySelectorAll(tagsWithPrices).forEach(el => {
-            calculatePrice(el);
-        });
+        calculatePrice(document.body);
         if (isGrocerySite) addUnitPrices(document.body);
         // resetPrices disconnected the observer; reconnect so dynamically
         // added prices (SPAs, lazy loading) keep being processed
@@ -560,15 +542,6 @@ const initializeObservers = () => {
             if (mutation.type === 'characterData' && mutation.target.nodeType === Node.TEXT_NODE) {
                 processedTextNodes.delete(mutation.target);
                 originalValues.delete(mutation.target);
-            }
-
-            // The site changed content under an element we marked as
-            // processed; clear the marker so the new content gets calculated
-            if (target && target.closest) {
-                const modifiedElement = target.closest('[data-original-html]');
-                if (modifiedElement) {
-                    delete modifiedElement.dataset.originalHtml;
-                }
             }
 
             if (mutation.addedNodes.length > 0) {
